@@ -1,6 +1,6 @@
 # 168 — week time audit
 
-A single-page web app for logging where all 168 hours of your week go, in 30-minute
+A single-page web app for logging where all 168 hours of your week go, in 15-minute
 blocks, on your phone. No accounts, no server, no build step. Everything is saved in
 your browser's localStorage on that device.
 
@@ -8,7 +8,7 @@ your browser's localStorage on that device.
 
 ## Use it
 
-- **Tap** a cell to log 30 minutes of the selected category.
+- **Tap** a cell to log 15 minutes of the selected category.
 - **Press and hold ~0.2s, then drag** to paint a longer block. (The hold is what stops
   the page from scrolling while you drag.)
 - Tap a filled cell again to clear it. Or pick **Erase** and drag.
@@ -49,7 +49,7 @@ Everything is in `index.html`. A few things you may want to edit:
 
 - Default categories and colors: the `DEFAULTS` array near the top of the script.
 - Color choices offered when adding a category: `SWATCH`.
-- Block size: `--cell` in the CSS (`15px` per 30 minutes). Raising it makes cells easier
+- Block size: `--cell` in the CSS (`15px` per 15 minutes). Raising it makes cells easier
   to hit but pushes more of the day below the fold.
 - Hold delay before painting starts: `170` (ms) in the `touchstart` handler.
 
