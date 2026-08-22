@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,7 +20,9 @@
     --display:"Futura","Avenir Next",-apple-system,BlinkMacSystemFont,sans-serif;
     --body:"Avenir Next",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,monospace;
-    --cell:15px;
+    --cell:9px;
+    --cell-zoom:30px;
+    --line-mid:#262B41;
     --gutter:30px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -71,25 +74,37 @@
   }
   .dayhead div.d.today{color:var(--text)}
   .dayhead div.d span{display:block;font-family:var(--mono);font-size:8px;color:var(--dimmer);margin-top:1px}
+  .dayhead div.d:active{background:var(--panel-2)}
+  .dayhead .zoomrow{flex:1;display:flex;align-items:center;justify-content:space-between;gap:2px}
+  .dayhead .zoomrow button{background:none;border:0;color:var(--dim);font-size:16px;line-height:1;padding:6px 9px;border-radius:8px}
+  .dayhead .zoomrow button:active{background:var(--panel-2);color:var(--text)}
+  .dayhead .zoomlbl{
+    flex:1;text-align:center;font-family:var(--display);font-size:12px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--text);
+  }
+  .dayhead .zoomlbl span{display:block;font-family:var(--mono);font-size:9px;color:var(--dimmer);margin-top:2px;letter-spacing:.05em}
 
   #gridwrap{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 12px 16px}
   .board{display:flex}
   .gutter{width:var(--gutter);flex:none;position:relative}
   .gutter div{
-    height:calc(var(--cell)*2);font-family:var(--mono);font-size:8.5px;color:var(--dimmer);
+    height:calc(var(--cell)*4);font-family:var(--mono);font-size:8.5px;color:var(--dimmer);
     display:flex;align-items:flex-start;justify-content:flex-end;padding-right:5px;
     transform:translateY(-4px);letter-spacing:.02em;
   }
   .gutter div.key{color:var(--dim)}
+  .gutter.zoom div{height:calc(var(--cell-zoom)*4);font-size:11px}
   .grid{
     flex:1;display:grid;grid-template-columns:repeat(7,1fr);
     grid-auto-rows:var(--cell);
     border-top:1px solid var(--line);border-left:1px solid var(--line);
   }
+  .grid.zoom{grid-template-columns:1fr;grid-auto-rows:var(--cell-zoom)}
   .cell{
     border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);
     background:var(--panel);position:relative;overflow:hidden;
   }
+  .cell.half{border-bottom-color:var(--line-mid)}
   .cell.h{border-bottom-color:var(--line)}
   .cell.q{border-bottom-color:var(--line);box-shadow:inset 0 -1px 0 var(--line)}
   .cell.on{border-right-color:rgba(0,0,0,.25);border-bottom-color:transparent}
@@ -101,6 +116,7 @@
   }
   .cell.dark i{color:#fff}
   .cell.light i{color:rgba(0,0,0,.75)}
+  .grid.zoom .cell i{font-size:12px;top:3px;left:8px}
   .hint{
     font-size:11px;color:var(--dimmer);line-height:1.5;padding:10px 2px 12px;
   }
@@ -203,7 +219,7 @@
       <div class="gutter" id="gutter"></div>
       <div class="grid" id="grid"></div>
     </div>
-    <div class="hint" id="hint"><b>Tap</b> a cell to log 30 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it.</div>
+    <div class="hint" id="hint"><b>Tap</b> a cell to log 15 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it. <b>Tap a day</b> above to zoom in.</div>
   </div>
 
   <div id="totals"></div>
@@ -216,7 +232,9 @@
 <div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
 
 <script>
-const SLOTS=48, DAYS=7, N=SLOTS*DAYS;
+const SLOTS=96, DAYS=7, N=SLOTS*DAYS;
+const OLD_SLOTS=48, OLD_N=OLD_SLOTS*DAYS;
+const CELL_PX=9, CELL_PX_ZOOM=30;
 const DAYNAMES=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const SWATCH=["#2E8FD4","#6B4FC9","#17A2A2","#2FAE72","#C08A2E","#E2593A","#D8579B","#E8B93E","#6B7A94","#9C6BE0","#4FBF9F","#E0704F"];
@@ -258,6 +276,7 @@ let week=new Array(N).fill(null);
 let sel=cats[0].id;
 let undoStack=[];
 let newColor=SWATCH[0];
+let zoomDay=null;
 
 const $=s=>document.querySelector(s);
 const grid=$("#grid");
@@ -266,7 +285,10 @@ function mondayOf(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate
 function keyOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function shift(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
 function catOf(id){return cats.find(c=>c.id===id)}
-function fmtH(h){return h%1===0?String(h):h.toFixed(1)}
+function fmtH(h){
+  if(h%1===0)return String(h);
+  return h.toFixed(2).replace(/0$/,"");
+}
 function light(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return (0.299*r+0.587*g+0.114*b)>150;
@@ -276,8 +298,31 @@ function hourLabel(h){
   return hh+ap;
 }
 
+/* ---------- migrating old 30-minute weeks to 15-minute weeks ---------- */
+function migrateWeek(old){
+  const out=new Array(N).fill(null);
+  for(let day=0;day<DAYS;day++){
+    for(let r=0;r<OLD_SLOTS;r++){
+      const v=old[day*OLD_SLOTS+r];
+      const base=day*SLOTS+r*2;
+      out[base]=v;out[base+1]=v;
+    }
+  }
+  return out;
+}
+async function loadWeekArray(key){
+  const d=await store.get(key);
+  if(Array.isArray(d)&&d.length===N)return d.slice();
+  if(Array.isArray(d)&&d.length===OLD_N){
+    const migrated=migrateWeek(d);
+    store.set(key,migrated);
+    return migrated;
+  }
+  return null;
+}
+
 /* ---------- build DOM ---------- */
-(function build(){
+(function buildGutter(){
   const gut=$("#gutter");
   for(let h=0;h<24;h++){
     const d=document.createElement("div");
@@ -285,16 +330,25 @@ function hourLabel(h){
     if(h%6===0)d.className="key";
     gut.appendChild(d);
   }
+})();
+function buildGrid(){
+  grid.innerHTML="";
+  grid.className="grid"+(zoomDay===null?"":" zoom");
+  $("#gutter").className="gutter"+(zoomDay===null?"":" zoom");
+  const cols=zoomDay===null?DAYS:1;
   for(let r=0;r<SLOTS;r++){
-    for(let d=0;d<DAYS;d++){
-      const c=document.createElement("div");
-      c.className="cell"+(r%2===1?" h":"")+((r+1)%12===0?" q":"");
-      c.dataset.i=d*SLOTS+r;
-      c.appendChild(document.createElement("i"));
-      grid.appendChild(c);
+    for(let c=0;c<cols;c++){
+      const day=zoomDay===null?c:zoomDay;
+      const i=day*SLOTS+r;
+      const el=document.createElement("div");
+      el.className=baseCls(i);
+      el.dataset.i=i;
+      el.appendChild(document.createElement("i"));
+      grid.appendChild(el);
     }
   }
-})();
+}
+buildGrid();
 
 /* ---------- render ---------- */
 function paintCells(){
@@ -314,22 +368,70 @@ function paintCells(){
     el.firstChild.textContent=(prev!==id&&next===id)?c.name.slice(0,7):"";
   }
 }
-function baseCls(i){const r=i%SLOTS;return "cell"+(r%2===1?" h":"")+((r+1)%12===0?" q":"")}
+function baseCls(i){
+  const r=i%SLOTS;
+  let cls="cell";
+  if(r%4===3)cls+=" h";
+  else if(r%4===1)cls+=" half";
+  if((r+1)%24===0)cls+=" q";
+  return cls;
+}
 
 function renderHead(){
   const h=$("#dayhead");h.innerHTML='<div class="sp"></div>';
   const today=keyOf(new Date());
-  for(let d=0;d<DAYS;d++){
-    const dt=shift(cur,d), el=document.createElement("div");
-    el.className="d"+(keyOf(dt)===today?" today":"");
-    el.innerHTML=DAYNAMES[d][0]+"<span>"+dt.getDate()+"</span>";
-    h.appendChild(el);
+  if(zoomDay===null){
+    for(let d=0;d<DAYS;d++){
+      const dt=shift(cur,d), el=document.createElement("div");
+      el.className="d"+(keyOf(dt)===today?" today":"");
+      el.innerHTML=DAYNAMES[d][0]+"<span>"+dt.getDate()+"</span>";
+      el.onclick=()=>enterZoom(d);
+      h.appendChild(el);
+    }
+  }else{
+    const dt=shift(cur,zoomDay);
+    const wrap=document.createElement("div");wrap.className="zoomrow";
+    const pv=document.createElement("button");pv.textContent="‹";pv.onclick=()=>navZoomDay(-1);
+    const lbl=document.createElement("div");lbl.className="zoomlbl";
+    lbl.innerHTML=DAYNAMES[zoomDay]+(keyOf(dt)===today?" · Today":"")
+      +"<span>"+MONTHS[dt.getMonth()]+" "+dt.getDate()+"</span>";
+    const nx=document.createElement("button");nx.textContent="›";nx.onclick=()=>navZoomDay(1);
+    const cl=document.createElement("button");cl.textContent="✕";cl.onclick=exitZoom;
+    wrap.appendChild(pv);wrap.appendChild(lbl);wrap.appendChild(nx);wrap.appendChild(cl);
+    h.appendChild(wrap);
   }
   const end=shift(cur,6);
   $("#wklabel").textContent=MONTHS[cur.getMonth()]+" "+cur.getDate()+" – "+
     (cur.getMonth()===end.getMonth()?"":MONTHS[end.getMonth()]+" ")+end.getDate();
   const isNow=keyOf(mondayOf(new Date()))===keyOf(cur);
   $("#wksub").textContent=isNow?"THIS WEEK":cur.getFullYear();
+}
+
+function scrollToNow(zoom){
+  const now=new Date();
+  $("#gridwrap").scrollTop=Math.max(0,(now.getHours()-2)*4*(zoom?CELL_PX_ZOOM:CELL_PX));
+}
+function enterZoom(d){
+  zoomDay=d;
+  buildGrid();renderHead();paintCells();
+  scrollToNow(true);
+}
+function exitZoom(){
+  zoomDay=null;
+  buildGrid();renderHead();paintCells();
+  scrollToNow(false);
+}
+async function navZoomDay(delta){
+  const nd=shift(cur,zoomDay+delta), nm=mondayOf(nd);
+  if(keyOf(nm)!==keyOf(cur)){
+    cur=nm;
+    zoomDay=(nd.getDay()+6)%7;
+    buildGrid();
+    await loadWeek();
+  }else{
+    zoomDay+=delta;
+    buildGrid();renderHead();paintCells();
+  }
 }
 
 function totalsByCat(){
@@ -344,15 +446,15 @@ function renderMeter(){
     const i=document.createElement("i");
     i.style.width=(m[c.id]/N*100)+"%";i.style.background=c.color;rb.appendChild(i);
   }
-  $("#logged").textContent=fmtH(used/2);
-  $("#unlogged").textContent=fmtH((N-used)/2)+" h unlogged";
+  $("#logged").textContent=fmtH(used/4);
+  $("#unlogged").textContent=fmtH((N-used)/4)+" h unlogged";
   $("#hint").style.display=used?"none":"block";
 }
 
 function renderTotals(){
   const m=totalsByCat(), used=Object.values(m).reduce((a,b)=>a+b,0);
   const list=cats.filter(c=>m[c.id]).sort((a,b)=>m[b.id]-m[a.id]);
-  let html='<div class="big">'+fmtH(used/2)+'<span> / 168 h</span></div>';
+  let html='<div class="big">'+fmtH(used/4)+'<span> / 168 h</span></div>';
   html+='<div style="font-family:var(--mono);font-size:10px;color:var(--dimmer);letter-spacing:.06em;margin-top:6px">'
       +(used?Math.round(used/N*100)+"% OF THE WEEK ACCOUNTED FOR":"NOTHING LOGGED YET")+'</div>';
   if(!used){
@@ -361,7 +463,7 @@ function renderTotals(){
   }
   html+='<div class="cap">Where the hours go</div>';
   for(const c of list){
-    const h=m[c.id]/2;
+    const h=m[c.id]/4;
     html+='<div class="row"><u style="background:'+c.color+'"></u><span class="nm">'+esc(c.name)+'</span>'
       +'<span class="hr">'+fmtH(h)+' h</span><span class="pc">'+Math.round(m[c.id]/N*100)+'%</span></div>'
       +'<div class="bar"><i style="width:'+(m[c.id]/N*100)+'%;background:'+c.color+'"></i></div>'
@@ -369,7 +471,7 @@ function renderTotals(){
   }
   const unl=N-used;
   html+='<div class="row" style="opacity:.6"><u style="background:var(--line)"></u><span class="nm">Unlogged</span>'
-      +'<span class="hr">'+fmtH(unl/2)+' h</span><span class="pc">'+Math.round(unl/N*100)+'%</span></div>';
+      +'<span class="hr">'+fmtH(unl/4)+' h</span><span class="pc">'+Math.round(unl/N*100)+'%</span></div>';
 
   html+='<div class="cap">Day by day</div><div class="days">';
   for(let d=0;d<DAYS;d++){
@@ -383,7 +485,7 @@ function renderTotals(){
   html+='</div><div class="dlbl">';
   for(let d=0;d<DAYS;d++){
     let n=0;for(let r=0;r<SLOTS;r++)if(week[d*SLOTS+r])n++;
-    html+='<div>'+DAYNAMES[d][0]+'<b>'+fmtH(n/2)+'</b></div>';
+    html+='<div>'+DAYNAMES[d][0]+'<b>'+fmtH(n/4)+'</b></div>';
   }
   html+='</div>';
   $("#totals").innerHTML=html;
@@ -476,8 +578,8 @@ $("#undo").onclick=()=>{
 
 /* ---------- navigation ---------- */
 async function loadWeek(){
-  const d=await store.get("tt:w:"+keyOf(cur));
-  week=(Array.isArray(d)&&d.length===N)?d:new Array(N).fill(null);
+  const arr=await loadWeekArray("tt:w:"+keyOf(cur));
+  week=arr||new Array(N).fill(null);
   undoStack=[];
   renderHead();paintCells();renderMeter();renderTotals();
 }
@@ -514,9 +616,9 @@ function openMenu(){
     const b=document.createElement("button");b.className="act"+(cls?" "+cls:"");b.textContent=label;b.onclick=fn;sheet.appendChild(b);
   };
   mk("Copy last week into this week",async()=>{
-    const d=await store.get("tt:w:"+keyOf(shift(cur,-7)));
-    if(!Array.isArray(d)||d.length!==N){alert("Nothing logged last week to copy.");return}
-    snapshot();week=d.slice();renderAll();save();closeSheet();
+    const arr=await loadWeekArray("tt:w:"+keyOf(shift(cur,-7)));
+    if(!arr){alert("Nothing logged last week to copy.");return}
+    snapshot();week=arr;renderAll();save();closeSheet();
   });
   mk("Edit categories",openCats);
   const h2=document.createElement("h3");h2.textContent="Data";h2.style.marginTop="18px";sheet.appendChild(h2);
@@ -536,11 +638,11 @@ function openCats(){
   for(const c of cats){
     const row=document.createElement("div");row.className="catrow";
     row.innerHTML='<u style="background:'+c.color+'"></u><span>'+esc(c.name)+'</span>'
-      +'<span class="hrs">'+(m[c.id]?fmtH(m[c.id]/2)+" h":"")+'</span>';
+      +'<span class="hrs">'+(m[c.id]?fmtH(m[c.id]/4)+" h":"")+'</span>';
     const x=document.createElement("button");x.textContent="×";
     x.onclick=()=>{
       if(cats.length<2)return;
-      if(m[c.id]&&!confirm("Remove "+c.name+"? Its "+fmtH(m[c.id]/2)+" h this week will be cleared."))return;
+      if(m[c.id]&&!confirm("Remove "+c.name+"? Its "+fmtH(m[c.id]/4)+" h this week will be cleared."))return;
       snapshot();
       cats=cats.filter(z=>z.id!==c.id);
       for(let i=0;i<N;i++)if(week[i]===c.id)week[i]=null;
@@ -617,7 +719,6 @@ if("serviceWorker" in navigator){
   sel=cats[0].id;
   renderChips();
   await loadWeek();
-  const now=new Date();
-  $("#gridwrap").scrollTop=Math.max(0,(now.getHours()-2)*2*15);
+  scrollToNow(zoomDay!==null);
 })();
 </script>
