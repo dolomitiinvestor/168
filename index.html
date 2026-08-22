@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -175,6 +176,28 @@
   .swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
   .swatches u{width:24px;height:24px;border-radius:6px;text-decoration:none;border:2px solid transparent}
   .swatches u.on{border-color:var(--text)}
+
+  /* ---------- add activity ---------- */
+  .daypick{display:flex;gap:5px}
+  .daypick button{
+    flex:1;background:var(--panel-2);border:0;color:var(--dim);padding:9px 0;border-radius:9px;
+    font-family:var(--mono);font-size:11px;
+  }
+  .daypick button.on{background:var(--text);color:var(--ink);font-weight:600}
+  .catpick{display:flex;flex-wrap:wrap;gap:7px}
+  .catpick button{
+    display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:20px;
+    background:var(--panel-2);border:1px solid transparent;color:var(--dim);
+    font-family:var(--body);font-size:12.5px;
+  }
+  .catpick button u{width:9px;height:9px;border-radius:50%;display:block;text-decoration:none}
+  .catpick button.on{color:#0F1220;font-weight:600}
+  .timerow{display:flex;align-items:center;gap:10px}
+  .timerow select{
+    flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:11px 10px;font-family:var(--mono);font-size:14px;min-width:0;
+  }
+  .timerow span{color:var(--dimmer);font-size:12px}
   @media (prefers-reduced-motion:no-preference){
     .cell{transition:background-color .09s ease}
   }
@@ -186,6 +209,7 @@
       <button class="ib" id="prev">‹</button>
       <div class="wk"><span id="wklabel">—</span><small id="wksub"></small></div>
       <button class="ib" id="undo">↺</button>
+      <button class="ib" id="addact">+</button>
       <button class="ib" id="menu">⋯</button>
     </div>
     <div class="ribbon" id="ribbon"></div>
@@ -280,6 +304,12 @@ function light(hex){
 function hourLabel(h){
   const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
   return hh+ap;
+}
+function qLabel(r){
+  if(r>=SLOTS)return "12a";
+  const h=Math.floor(r/4), m=(r%4)*15;
+  const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
+  return hh+(m?":"+String(m).padStart(2,"0"):"")+ap;
 }
 
 /* ---------- build DOM ---------- */
@@ -511,6 +541,7 @@ document.querySelectorAll(".tab").forEach(t=>{
     $("#gridwrap").style.display=g?"block":"none";
     $("#dayhead").style.display=g?"flex":"none";
     $("#totals").style.display=g?"none":"block";
+    $("#addact").style.display=g?"":"none";
     if(!g)renderTotals();
   };
 });
@@ -528,6 +559,84 @@ const scrim=$("#scrim"),sheet=$("#sheet");
 scrim.onclick=e=>{if(e.target===scrim)closeSheet()};
 function closeSheet(){scrim.classList.remove("on");sheet.innerHTML=""}
 $("#menu").onclick=openMenu;
+$("#addact").onclick=openAddActivity;
+
+function openAddActivity(){
+  const today=keyOf(new Date());
+  let apDay=0;
+  for(let d=0;d<DAYS;d++)if(keyOf(shift(cur,d))===today){apDay=d;break}
+  let apCat=sel!=="__erase"?sel:cats[0].id;
+  const now=new Date();
+  let apStart=Math.min(SLOTS-4,Math.max(0,now.getHours()*4+Math.floor(now.getMinutes()/15)));
+  let apEnd=Math.min(SLOTS,apStart+4);
+
+  sheet.innerHTML='<h3>Add Activity</h3>';
+
+  const dayWrap=document.createElement("div");dayWrap.className="daypick";
+  DAYNAMES.forEach((nm,d)=>{
+    const b=document.createElement("button");
+    b.textContent=nm;
+    if(d===apDay)b.className="on";
+    b.onclick=()=>{apDay=d;dayWrap.querySelectorAll("button").forEach(x=>x.className="");b.className="on"};
+    dayWrap.appendChild(b);
+  });
+  sheet.appendChild(dayWrap);
+
+  const catCap=document.createElement("div");catCap.className="cap";catCap.style.margin="16px 0 8px";catCap.textContent="Category";
+  sheet.appendChild(catCap);
+  const catWrap=document.createElement("div");catWrap.className="catpick";
+  cats.forEach(c=>{
+    const b=document.createElement("button");
+    b.innerHTML='<u style="background:'+c.color+'"></u>'+esc(c.name);
+    if(c.id===apCat){b.className="on";b.style.background=c.color}
+    b.onclick=()=>{
+      apCat=c.id;
+      catWrap.querySelectorAll("button").forEach(x=>{x.className="";x.style.background=""});
+      b.className="on";b.style.background=c.color;
+    };
+    catWrap.appendChild(b);
+  });
+  sheet.appendChild(catWrap);
+
+  const timeCap=document.createElement("div");timeCap.className="cap";timeCap.style.margin="16px 0 8px";timeCap.textContent="Time";
+  sheet.appendChild(timeCap);
+  const timeWrap=document.createElement("div");timeWrap.className="timerow";
+  const selStart=document.createElement("select"), selEnd=document.createElement("select");
+  for(let r=0;r<SLOTS;r++){
+    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
+    if(r===apStart)o.selected=true;
+    selStart.appendChild(o);
+  }
+  for(let r=1;r<=SLOTS;r++){
+    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
+    if(r===apEnd)o.selected=true;
+    selEnd.appendChild(o);
+  }
+  selStart.onchange=()=>{
+    const v=+selStart.value;
+    if(+selEnd.value<=v){selEnd.value=Math.min(SLOTS,v+4)}
+  };
+  timeWrap.appendChild(selStart);
+  const to=document.createElement("span");to.textContent="to";timeWrap.appendChild(to);
+  timeWrap.appendChild(selEnd);
+  sheet.appendChild(timeWrap);
+
+  const addBtn=document.createElement("button");
+  addBtn.className="act";addBtn.style.textAlign="center";addBtn.style.fontWeight="600";addBtn.style.marginTop="16px";
+  addBtn.textContent="Add";
+  addBtn.onclick=()=>{
+    const s=+selStart.value, e=+selEnd.value;
+    if(e<=s){alert("End time must be after start time.");return}
+    snapshot();
+    for(let r=s;r<e;r++)week[apDay*SLOTS+r]=apCat;
+    sel=apCat;renderChips();renderAll();save();closeSheet();
+    document.querySelector('.tab[data-v="grid"]').click();
+    $("#gridwrap").scrollTop=Math.max(0,(Math.floor(s/4)-2)*60);
+  };
+  sheet.appendChild(addBtn);
+
+  scrim.classList.add("on");
+}
 
 function openMenu(){
   sheet.innerHTML='<h3>Week</h3>';
