@@ -214,6 +214,13 @@
     border-radius:9px;padding:11px 10px;font-family:var(--mono);font-size:14px;min-width:0;
   }
   .timerow span{color:var(--dimmer);font-size:12px}
+  .timerow.typed{margin-top:8px}
+  .timeinput{
+    flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:9px 10px;font-family:var(--mono);font-size:13px;min-width:0;text-align:center;
+  }
+  .timeinput:focus{outline:none;border-color:var(--dim)}
+  .timeinput::placeholder{color:var(--dimmer)}
   @media (prefers-reduced-motion:no-preference){
     .cell{transition:background-color .09s ease}
   }
@@ -265,15 +272,17 @@ const DAYNAMES=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const SWATCH=["#2E8FD4","#6B4FC9","#17A2A2","#2FAE72","#C08A2E","#E2593A","#D8579B","#E8B93E","#6B7A94","#9C6BE0","#4FBF9F","#E0704F"];
 const DEFAULTS=[
-  {id:"sleep",name:"Sleep",color:"#6B4FC9"},
   {id:"work",name:"Work",color:"#2E8FD4"},
+  {id:"news",name:"News",color:"#E2593A"},
+  {id:"phone",name:"Phone Time",color:"#6B7A94"},
+  {id:"gym",name:"Gym",color:"#2FAE72"},
+  {id:"social",name:"Social",color:"#D8579B"},
+  {id:"networking",name:"Networking",color:"#9C6BE0"},
+  {id:"book",name:"Book",color:"#17A2A2"},
   {id:"commute",name:"Commute",color:"#C08A2E"},
-  {id:"workout",name:"Workout",color:"#2FAE72"},
-  {id:"eat",name:"Eat",color:"#E2593A"},
-  {id:"family",name:"Family",color:"#D8579B"},
-  {id:"chores",name:"Chores",color:"#6B7A94"},
-  {id:"learn",name:"Learning",color:"#17A2A2"},
-  {id:"leisure",name:"Leisure",color:"#E8B93E"}
+  {id:"cooking",name:"Cooking",color:"#E8B93E"},
+  {id:"admin",name:"Life Admin",color:"#4FBF9F"},
+  {id:"journal",name:"Journal",color:"#6B4FC9"}
 ];
 
 /* ---------- storage (localStorage, stays on this device) ---------- */
@@ -343,6 +352,33 @@ function fmtElapsed(ms){
 }
 function floor15(d){const step=15*60000;return new Date(Math.floor(d.getTime()/step)*step)}
 function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/step)*step)}
+function fmtMinutes(mn){
+  mn=((mn%1440)+1440)%1440;
+  const h=Math.floor(mn/60),m=mn%60,ap=h<12?"a":"p",hh=h%12===0?12:h%12;
+  return hh+":"+String(m).padStart(2,"0")+ap;
+}
+function parseTimeStr(s){
+  s=(s||"").trim().toLowerCase();
+  const m=s.match(/^(\d{1,2})(?::(\d{2}))?\s*(a|p|am|pm)?$/);
+  if(!m)return null;
+  let h=parseInt(m[1],10);const mins=m[2]?parseInt(m[2],10):0;
+  if(mins>59)return null;
+  const ap=m[3];
+  if(ap){
+    if(h<1||h>12)return null;
+    if(ap[0]==="p"&&h!==12)h+=12;
+    if(ap[0]==="a"&&h===12)h=0;
+  }else if(h>23)return null;
+  return h*60+mins;
+}
+function lastFilledEnd(){
+  let lastIdx=-1;
+  for(let i=0;i<N;i++)if(week[i]!=null)lastIdx=i;
+  if(lastIdx<0)return null;
+  const nextIdx=lastIdx+1;
+  if(nextIdx>=N)return null;
+  return {day:Math.floor(nextIdx/SLOTS),startMin:(nextIdx%SLOTS)*15};
+}
 
 /* ---------- build DOM ---------- */
 (function build(){
@@ -723,13 +759,18 @@ function openStopwatchRunning(){
 }
 
 function openAddActivity(){
-  const today=keyOf(new Date());
-  let apDay=0;
-  for(let d=0;d<DAYS;d++)if(keyOf(shift(cur,d))===today){apDay=d;break}
+  let apDay,apStartMin;
+  const lf=lastFilledEnd();
+  if(lf){
+    apDay=lf.day;apStartMin=lf.startMin;
+  }else{
+    const today=keyOf(new Date());
+    apDay=0;for(let d=0;d<DAYS;d++)if(keyOf(shift(cur,d))===today){apDay=d;break}
+    const now=new Date();
+    apStartMin=Math.min(1439,Math.max(0,now.getHours()*60+now.getMinutes()));
+  }
+  let apEndMin=Math.min(1440,apStartMin+60);
   let apCat=sel!=="__erase"?sel:cats[0].id;
-  const now=new Date();
-  let apStart=Math.min(SLOTS-4,Math.max(0,now.getHours()*4+Math.floor(now.getMinutes()/15)));
-  let apEnd=Math.min(SLOTS,apStart+4);
 
   sheet.innerHTML='<h3>Add Activity</h3>';
 
@@ -749,32 +790,65 @@ function openAddActivity(){
 
   const timeCap=document.createElement("div");timeCap.className="cap";timeCap.style.margin="16px 0 8px";timeCap.textContent="Time";
   sheet.appendChild(timeCap);
-  const timeWrap=document.createElement("div");timeWrap.className="timerow";
+
+  const FINE=5;
   const selStart=document.createElement("select"), selEnd=document.createElement("select");
-  for(let r=0;r<SLOTS;r++){
-    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
-    if(r===apStart)o.selected=true;
+  for(let m=0;m<1440;m+=FINE){
+    const o=document.createElement("option");o.value=m;o.textContent=fmtMinutes(m);
     selStart.appendChild(o);
   }
-  for(let r=1;r<=SLOTS;r++){
-    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
-    if(r===apEnd)o.selected=true;
+  for(let m=FINE;m<=1440;m+=FINE){
+    const o=document.createElement("option");o.value=m;o.textContent=m===1440?"12a":fmtMinutes(m);
     selEnd.appendChild(o);
   }
-  selStart.onchange=()=>{
-    const v=+selStart.value;
-    if(+selEnd.value<=v){selEnd.value=Math.min(SLOTS,v+4)}
-  };
+  const timeWrap=document.createElement("div");timeWrap.className="timerow";
   timeWrap.appendChild(selStart);
   const to=document.createElement("span");to.textContent="to";timeWrap.appendChild(to);
   timeWrap.appendChild(selEnd);
   sheet.appendChild(timeWrap);
 
+  const typedWrap=document.createElement("div");typedWrap.className="timerow typed";
+  const txtStart=document.createElement("input");
+  txtStart.className="timeinput";txtStart.type="text";txtStart.inputMode="numeric";txtStart.placeholder="9:07a";
+  const to2=document.createElement("span");to2.textContent="to";
+  const txtEnd=document.createElement("input");
+  txtEnd.className="timeinput";txtEnd.type="text";txtEnd.inputMode="numeric";txtEnd.placeholder="9:37a";
+  typedWrap.appendChild(txtStart);typedWrap.appendChild(to2);typedWrap.appendChild(txtEnd);
+  sheet.appendChild(typedWrap);
+
+  function syncTime(){
+    selStart.value=Math.min(1435,Math.max(0,Math.round(apStartMin/FINE)*FINE));
+    selEnd.value=Math.min(1440,Math.max(FINE,Math.round(apEndMin/FINE)*FINE));
+    txtStart.value=fmtMinutes(apStartMin);
+    txtEnd.value=apEndMin>=1440?"12a":fmtMinutes(apEndMin);
+  }
+  syncTime();
+
+  selStart.onchange=()=>{
+    apStartMin=+selStart.value;
+    if(apEndMin<=apStartMin)apEndMin=Math.min(1440,apStartMin+60);
+    syncTime();
+  };
+  selEnd.onchange=()=>{apEndMin=+selEnd.value;syncTime()};
+  txtStart.onchange=()=>{
+    const v=parseTimeStr(txtStart.value);
+    if(v==null){txtStart.value=fmtMinutes(apStartMin);return}
+    apStartMin=v;
+    if(apEndMin<=apStartMin)apEndMin=Math.min(1440,apStartMin+60);
+    syncTime();
+  };
+  txtEnd.onchange=()=>{
+    const v=parseTimeStr(txtEnd.value);
+    if(v==null){txtEnd.value=apEndMin>=1440?"12a":fmtMinutes(apEndMin);return}
+    apEndMin=v;
+    syncTime();
+  };
+
   const addBtn=document.createElement("button");
   addBtn.className="act";addBtn.style.textAlign="center";addBtn.style.fontWeight="600";addBtn.style.marginTop="16px";
   addBtn.textContent="Add";
   addBtn.onclick=()=>{
-    const s=+selStart.value, e=+selEnd.value;
+    const s=Math.floor(apStartMin/15), e=Math.ceil(apEndMin/15);
     if(e<=s){alert("End time must be after start time.");return}
     snapshot();
     for(let r=s;r<e;r++)week[apDay*SLOTS+r]=apCat;
