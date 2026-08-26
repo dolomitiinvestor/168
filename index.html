@@ -109,9 +109,25 @@
 
   /* ---------- palette ---------- */
   footer{
+    position:relative;
     flex:none;border-top:1px solid var(--line-soft);background:var(--panel);
     padding:9px 0 calc(9px + env(safe-area-inset-bottom));
   }
+
+  /* ---------- floating action buttons ---------- */
+  .fabs{
+    position:absolute;right:14px;bottom:calc(100% + 14px);
+    display:flex;align-items:center;gap:12px;z-index:15;
+  }
+  .fab{
+    width:56px;height:56px;flex:none;border-radius:50%;border:0;
+    background:var(--panel-2);color:var(--text);font-family:var(--mono);
+    font-size:22px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 18px rgba(0,0,0,.45);
+  }
+  .fab:active{transform:scale(.94)}
+  .fab.primary{background:var(--text);color:var(--ink);font-size:30px;font-weight:300;font-family:var(--body)}
+  .fab.running{border-radius:28px;width:auto;min-width:56px;padding:0 16px;font-size:15px;letter-spacing:.02em}
   .chips{display:flex;gap:7px;overflow-x:auto;padding:0 12px;-webkit-overflow-scrolling:touch}
   .chips::-webkit-scrollbar{display:none}
   .chip{
@@ -209,7 +225,6 @@
       <button class="ib" id="prev">‹</button>
       <div class="wk"><span id="wklabel">—</span><small id="wksub"></small></div>
       <button class="ib" id="undo">↺</button>
-      <button class="ib" id="addact">+</button>
       <button class="ib" id="menu">⋯</button>
     </div>
     <div class="ribbon" id="ribbon"></div>
@@ -233,6 +248,10 @@
   <div id="totals"></div>
 
   <footer>
+    <div class="fabs" id="fabs">
+      <button class="fab" id="swfab" title="Stopwatch">⏱</button>
+      <button class="fab primary" id="addact" title="Add activity">+</button>
+    </div>
     <div class="chips" id="chips"></div>
   </footer>
 </div>
@@ -283,6 +302,7 @@ let week=new Array(N).fill(null);
 let sel=cats[0].id;
 let undoStack=[];
 let newColor=SWATCH[0];
+let runningTimer=null;
 
 const $=s=>document.querySelector(s);
 const grid=$("#grid");
@@ -311,6 +331,18 @@ function qLabel(r){
   const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
   return hh+(m?":"+String(m).padStart(2,"0"):"")+ap;
 }
+function fmtClockTime(d){
+  const h=d.getHours(),m=d.getMinutes(),ap=h<12?"a":"p",hh=h%12===0?12:h%12;
+  return hh+":"+String(m).padStart(2,"0")+ap;
+}
+function fmtElapsed(ms){
+  let s=Math.max(0,Math.floor(ms/1000));
+  const h=Math.floor(s/3600);s%=3600;
+  const m=Math.floor(s/60);s%=60;
+  return (h?h+":"+String(m).padStart(2,"0"):String(m))+":"+String(s).padStart(2,"0");
+}
+function floor15(d){const step=15*60000;return new Date(Math.floor(d.getTime()/step)*step)}
+function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/step)*step)}
 
 /* ---------- build DOM ---------- */
 (function build(){
@@ -541,7 +573,7 @@ document.querySelectorAll(".tab").forEach(t=>{
     $("#gridwrap").style.display=g?"block":"none";
     $("#dayhead").style.display=g?"flex":"none";
     $("#totals").style.display=g?"none":"block";
-    $("#addact").style.display=g?"":"none";
+    $("#fabs").style.display=g?"flex":"none";
     if(!g)renderTotals();
   };
 });
@@ -560,6 +592,135 @@ scrim.onclick=e=>{if(e.target===scrim)closeSheet()};
 function closeSheet(){scrim.classList.remove("on");sheet.innerHTML=""}
 $("#menu").onclick=openMenu;
 $("#addact").onclick=openAddActivity;
+$("#swfab").onclick=()=>{runningTimer?openStopwatchRunning():openStopwatchStart()};
+
+function buildCatPicker(initial,onPick){
+  const wrap=document.createElement("div");wrap.className="catpick";
+  cats.forEach(c=>{
+    const b=document.createElement("button");
+    b.innerHTML='<u style="background:'+c.color+'"></u>'+esc(c.name);
+    if(c.id===initial){b.className="on";b.style.background=c.color}
+    b.onclick=()=>{
+      wrap.querySelectorAll("button").forEach(x=>{x.className="";x.style.background=""});
+      b.className="on";b.style.background=c.color;
+      onPick(c.id);
+    };
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+/* ---------- stopwatch ---------- */
+function renderSwFab(){
+  const b=$("#swfab");
+  if(runningTimer){
+    const c=catOf(runningTimer.catId)||cats[0];
+    b.classList.add("running");
+    b.style.background=c.color;
+    b.style.color=light(c.color)?"rgba(0,0,0,.8)":"#fff";
+    b.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
+  }else{
+    b.classList.remove("running");
+    b.style.background="";b.style.color="";
+    b.textContent="⏱";
+  }
+}
+setInterval(()=>{
+  if(!runningTimer)return;
+  renderSwFab();
+  const el=$("#swClock");if(el)el.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
+},1000);
+
+async function applyRange(startDate,endDate,catId){
+  let t=floor15(startDate).getTime();
+  let end=ceil15(endDate).getTime();
+  if(end<=t)end=t+15*60000;
+  const groups={};
+  for(;t<end;t+=15*60000){
+    const d=new Date(t);
+    const mon=mondayOf(d);
+    const dayIdx=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-mon)/86400000);
+    if(dayIdx<0||dayIdx>6)continue;
+    const slot=d.getHours()*4+Math.floor(d.getMinutes()/15);
+    const wk=keyOf(mon);
+    if(!groups[wk])groups[wk]={idx:[]};
+    groups[wk].idx.push(dayIdx*SLOTS+slot);
+  }
+  for(const wk in groups){
+    const idx=groups[wk].idx;
+    if(wk===keyOf(cur)){
+      snapshot();
+      for(const i of idx)week[i]=catId;
+      renderAll();save();
+    }else{
+      const existing=migrateWeek(await store.get("tt:w:"+wk))||new Array(N).fill(null);
+      for(const i of idx)existing[i]=catId;
+      await store.set("tt:w:"+wk,existing);
+    }
+  }
+  sel=catId;renderChips();
+}
+
+function openStopwatchStart(){
+  let apCat=sel!=="__erase"?sel:cats[0].id;
+  sheet.innerHTML='<h3>Start Stopwatch</h3>';
+  const cap=document.createElement("div");cap.className="cap";cap.style.margin="0 0 8px";cap.textContent="Category";
+  sheet.appendChild(cap);
+  sheet.appendChild(buildCatPicker(apCat,id=>apCat=id));
+
+  const startBtn=document.createElement("button");
+  startBtn.className="act";startBtn.style.textAlign="center";startBtn.style.fontWeight="600";startBtn.style.marginTop="16px";
+  startBtn.textContent="Start";
+  startBtn.onclick=async()=>{
+    runningTimer={catId:apCat,startTs:Date.now()};
+    await store.set("tt:running",runningTimer);
+    renderSwFab();closeSheet();
+  };
+  sheet.appendChild(startBtn);
+
+  scrim.classList.add("on");
+}
+
+function openStopwatchRunning(){
+  const c=catOf(runningTimer.catId)||cats[0];
+  sheet.innerHTML='<h3>Stopwatch Running</h3>';
+
+  const row=document.createElement("div");row.className="catrow";row.style.borderBottom="0";
+  row.innerHTML='<u style="background:'+c.color+'"></u><span>'+esc(c.name)+'</span>';
+  sheet.appendChild(row);
+
+  const clock=document.createElement("div");clock.className="big";clock.id="swClock";
+  clock.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
+  sheet.appendChild(clock);
+
+  const startedAt=document.createElement("div");
+  startedAt.style.cssText="font-family:var(--mono);font-size:10px;color:var(--dimmer);margin-top:4px";
+  startedAt.textContent="Started "+fmtClockTime(new Date(runningTimer.startTs));
+  sheet.appendChild(startedAt);
+
+  const stopBtn=document.createElement("button");
+  stopBtn.className="act";stopBtn.style.textAlign="center";stopBtn.style.fontWeight="600";stopBtn.style.marginTop="20px";
+  stopBtn.textContent="Stop & Log";
+  stopBtn.onclick=async()=>{
+    const startDate=new Date(runningTimer.startTs), endDate=new Date(), catId=runningTimer.catId;
+    runningTimer=null;store.del("tt:running");renderSwFab();
+    await applyRange(startDate,endDate,catId);
+    closeSheet();
+    document.querySelector('.tab[data-v="grid"]').click();
+  };
+  sheet.appendChild(stopBtn);
+
+  const discardBtn=document.createElement("button");
+  discardBtn.className="act danger";discardBtn.style.textAlign="center";discardBtn.style.marginTop="7px";
+  discardBtn.textContent="Discard";
+  discardBtn.onclick=()=>{
+    if(!confirm("Discard this timer without logging it?"))return;
+    runningTimer=null;store.del("tt:running");renderSwFab();closeSheet();
+  };
+  sheet.appendChild(discardBtn);
+
+  scrim.classList.add("on");
+}
 
 function openAddActivity(){
   const today=keyOf(new Date());
@@ -584,19 +745,7 @@ function openAddActivity(){
 
   const catCap=document.createElement("div");catCap.className="cap";catCap.style.margin="16px 0 8px";catCap.textContent="Category";
   sheet.appendChild(catCap);
-  const catWrap=document.createElement("div");catWrap.className="catpick";
-  cats.forEach(c=>{
-    const b=document.createElement("button");
-    b.innerHTML='<u style="background:'+c.color+'"></u>'+esc(c.name);
-    if(c.id===apCat){b.className="on";b.style.background=c.color}
-    b.onclick=()=>{
-      apCat=c.id;
-      catWrap.querySelectorAll("button").forEach(x=>{x.className="";x.style.background=""});
-      b.className="on";b.style.background=c.color;
-    };
-    catWrap.appendChild(b);
-  });
-  sheet.appendChild(catWrap);
+  sheet.appendChild(buildCatPicker(apCat,id=>apCat=id));
 
   const timeCap=document.createElement("div");timeCap.className="cap";timeCap.style.margin="16px 0 8px";timeCap.textContent="Time";
   sheet.appendChild(timeCap);
@@ -746,6 +895,8 @@ if("serviceWorker" in navigator){
   if(Array.isArray(saved)&&saved.length)cats=saved;
   sel=cats[0].id;
   renderChips();
+  runningTimer=await store.get("tt:running");
+  renderSwFab();
   await loadWeek();
   const now=new Date();
   $("#gridwrap").scrollTop=Math.max(0,(now.getHours()-2)*4*15);
