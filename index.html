@@ -812,10 +812,42 @@ function openCats(){
   const m=totalsByCat();
   sheet.innerHTML='<h3>Categories</h3>';
   const wrap=document.createElement("div");
-  for(const c of cats){
+  cats.forEach((c,idx)=>{
     const row=document.createElement("div");row.className="catrow";
-    row.innerHTML='<u style="background:'+c.color+'"></u><span>'+esc(c.name)+'</span>'
-      +'<span class="hrs">'+(m[c.id]?fmtH(m[c.id]/4)+" h":"")+'</span>';
+
+    const dotBtn=document.createElement("button");
+    dotBtn.style.cssText="background:none;border:0;padding:6px;margin:-6px 0;flex:none;display:flex";
+    const dot=document.createElement("u");dot.style.cssText="width:16px;height:16px;border-radius:4px;background:"+c.color;
+    dotBtn.appendChild(dot);
+    row.appendChild(dotBtn);
+
+    const nameSpan=document.createElement("span");
+    nameSpan.style.cssText="flex:1;font-size:13px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis";
+    nameSpan.textContent=c.name;
+    row.appendChild(nameSpan);
+
+    const hrs=document.createElement("span");hrs.className="hrs";
+    hrs.textContent=m[c.id]?fmtH(m[c.id]/4)+" h":"";
+    row.appendChild(hrs);
+
+    const upBtn=document.createElement("button");upBtn.textContent="↑";upBtn.style.fontSize="14px";
+    upBtn.style.opacity=idx===0?".3":"1";
+    upBtn.onclick=()=>{
+      if(idx===0)return;
+      [cats[idx-1],cats[idx]]=[cats[idx],cats[idx-1]];
+      store.set("tt:cats",cats);renderChips();openCats();
+    };
+    row.appendChild(upBtn);
+
+    const downBtn=document.createElement("button");downBtn.textContent="↓";downBtn.style.fontSize="14px";
+    downBtn.style.opacity=idx===cats.length-1?".3":"1";
+    downBtn.onclick=()=>{
+      if(idx===cats.length-1)return;
+      [cats[idx],cats[idx+1]]=[cats[idx+1],cats[idx]];
+      store.set("tt:cats",cats);renderChips();openCats();
+    };
+    row.appendChild(downBtn);
+
     const x=document.createElement("button");x.textContent="×";
     x.onclick=()=>{
       if(cats.length<2)return;
@@ -826,8 +858,23 @@ function openCats(){
       if(sel===c.id)sel=cats[0].id;
       store.set("tt:cats",cats);save();renderChips();renderAll();openCats();
     };
-    row.appendChild(x);wrap.appendChild(row);
-  }
+    row.appendChild(x);
+    wrap.appendChild(row);
+
+    const picker=document.createElement("div");
+    picker.className="swatches";picker.style.cssText="display:none;margin:2px 0 12px";
+    SWATCH.forEach(col=>{
+      const u=document.createElement("u");u.style.background=col;
+      if(col===c.color)u.className="on";
+      u.onclick=()=>{
+        c.color=col;
+        store.set("tt:cats",cats);renderChips();renderAll();openCats();
+      };
+      picker.appendChild(u);
+    });
+    wrap.appendChild(picker);
+    dotBtn.onclick=()=>{picker.style.display=picker.style.display==="none"?"flex":"none"};
+  });
   sheet.appendChild(wrap);
 
   const nc=document.createElement("div");nc.className="newcat";
