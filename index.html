@@ -21,6 +21,7 @@
     --body:"Avenir Next",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,monospace;
     --cell:15px;
+    --cellz:34px;
     --gutter:30px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -58,12 +59,51 @@
   .tabs{display:flex;gap:2px;padding:0 12px 8px;flex:none}
   .tab{
     flex:1;background:none;border:0;color:var(--dimmer);padding:7px 0;
-    font-family:var(--display);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-    border-bottom:2px solid transparent;
+    font-family:var(--display);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    border-bottom:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .tab.on{color:var(--text);border-bottom-color:var(--text)}
 
-  /* ---------- grid ---------- */
+  /* ---------- day tab (data entry, single day, zoomed) ---------- */
+  #daytab{flex:1;min-height:0;display:flex;flex-direction:column}
+  .daynav{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 12px 8px;flex:none}
+  .daylabel{
+    background:none;border:0;color:var(--text);font-family:var(--display);
+    font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:6px 14px;text-align:center;
+  }
+  .daylabel small{display:block;font-family:var(--mono);font-size:9px;color:var(--dimmer);letter-spacing:.1em;margin-top:2px}
+  #daywrap{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 12px 16px}
+  .boardz{display:flex}
+  .gutterz{width:var(--gutter);flex:none}
+  .gutterz div{
+    height:calc(var(--cellz)*4);font-family:var(--mono);font-size:10px;color:var(--dimmer);
+    display:flex;align-items:flex-start;justify-content:flex-end;padding-right:6px;
+    transform:translateY(-5px);letter-spacing:.02em;
+  }
+  .gutterz div.key{color:var(--dim)}
+  .gridz{
+    flex:1;display:flex;flex-direction:column;
+    border-top:1px solid var(--line);border-left:1px solid var(--line);
+  }
+  .cellz{
+    height:var(--cellz);flex:none;
+    border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);
+    background:var(--panel);position:relative;overflow:hidden;
+  }
+  .cellz.h{border-bottom-color:var(--line)}
+  .cellz.q{border-bottom-color:var(--line);box-shadow:inset 0 -1px 0 var(--line)}
+  .cellz.on{border-right-color:rgba(0,0,0,.25);border-bottom-color:transparent}
+  .cellz.on.tail{border-bottom-color:rgba(0,0,0,.28)}
+  .cellz i{
+    position:absolute;left:9px;top:50%;right:8px;transform:translateY(-50%);
+    font-family:var(--body);font-size:13px;font-style:normal;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .cellz.dark i{color:#fff}
+  .cellz.light i{color:rgba(0,0,0,.78)}
+
+  /* ---------- week tab (view only) ---------- */
+  #weektab{flex:1;min-height:0;display:none;flex-direction:column}
   .dayhead{display:flex;padding:0 12px 5px;flex:none}
   .dayhead .sp{width:var(--gutter);flex:none}
   .dayhead div.d{
@@ -114,7 +154,7 @@
     padding:9px 0 calc(9px + env(safe-area-inset-bottom));
   }
 
-  /* ---------- floating action buttons ---------- */
+  /* ---------- floating action button ---------- */
   .fabs{
     position:absolute;right:14px;bottom:calc(100% + 14px);
     display:flex;align-items:center;gap:12px;z-index:15;
@@ -127,7 +167,6 @@
   }
   .fab:active{transform:scale(.94)}
   .fab.primary{background:var(--text);color:var(--ink);font-size:30px;font-weight:300;font-family:var(--body)}
-  .fab.running{border-radius:28px;width:auto;min-width:56px;padding:0 16px;font-size:15px;letter-spacing:.02em}
   .chips{display:flex;gap:7px;overflow-x:auto;padding:0 12px;-webkit-overflow-scrolling:touch}
   .chips::-webkit-scrollbar{display:none}
   .chip{
@@ -160,6 +199,30 @@
   .dlbl div{flex:1;text-align:center;font-family:var(--mono);font-size:9px;color:var(--dimmer)}
   .dlbl div b{display:block;color:var(--dim);font-weight:400;font-size:10px}
   .empty{color:var(--dimmer);font-size:12.5px;line-height:1.6;padding:20px 0}
+
+  /* ---------- timer (stopwatch tab) ---------- */
+  #timer{flex:1;overflow-y:auto;padding:2px 14px 24px;-webkit-overflow-scrolling:touch;display:none}
+  .swrunning{border-radius:16px;padding:18px;text-align:center;margin-bottom:16px}
+  .swrunning-name{font-family:var(--display);font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85}
+  .swrunning-clock{font-family:var(--mono);font-size:40px;letter-spacing:-.02em;margin-top:6px}
+  .swrunning-started{font-family:var(--mono);font-size:10px;opacity:.75;margin-top:4px}
+  .swrunning-actions{display:flex;gap:10px;margin-top:16px}
+  .swbtn{flex:1;background:rgba(0,0,0,.2);border:0;color:inherit;border-radius:10px;padding:12px 0;font-weight:600;font-size:13px;font-family:var(--body)}
+  .swbtn.ghost{background:rgba(0,0,0,.08)}
+  .swhint{font-size:11px;color:var(--dimmer);line-height:1.5;padding:0 2px 14px}
+  .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .tile{
+    aspect-ratio:1.35;border:0;border-radius:16px;position:relative;
+    display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;
+    font-family:var(--display);font-size:14px;letter-spacing:.03em;text-transform:uppercase;font-weight:600;
+  }
+  .tile:active{transform:scale(.97)}
+  .tile.active{box-shadow:0 0 0 3px var(--text) inset}
+  .tile.dim{opacity:.38}
+  .tile-tag{
+    position:absolute;bottom:10px;left:0;right:0;font-family:var(--mono);
+    font-size:8px;letter-spacing:.15em;text-transform:uppercase;opacity:.85;
+  }
 
   /* ---------- sheet ---------- */
   .scrim{position:fixed;inset:0;background:rgba(8,10,18,.7);display:none;z-index:20}
@@ -215,7 +278,7 @@
   }
   .timerow span{color:var(--dimmer);font-size:12px}
   @media (prefers-reduced-motion:no-preference){
-    .cell{transition:background-color .09s ease}
+    .cell,.cellz{transition:background-color .09s ease}
   }
 </style>
 
@@ -232,24 +295,44 @@
   </header>
 
   <div class="tabs">
-    <button class="tab on" data-v="grid">Week</button>
+    <button class="tab on" data-v="day">Day</button>
+    <button class="tab" data-v="week">Week</button>
+    <button class="tab" data-v="timer">Timer</button>
     <button class="tab" data-v="totals">Totals</button>
   </div>
 
-  <div class="dayhead" id="dayhead"></div>
-  <div id="gridwrap">
-    <div class="board">
-      <div class="gutter" id="gutter"></div>
-      <div class="grid" id="grid"></div>
+  <div id="daytab">
+    <div class="daynav">
+      <button class="ib" id="dayprev">‹</button>
+      <button class="daylabel" id="daylabel">—</button>
+      <button class="ib" id="daynext">›</button>
     </div>
-    <div class="hint" id="hint"><b>Tap</b> a cell to log 15 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it.</div>
+    <div id="daywrap">
+      <div class="boardz">
+        <div class="gutterz" id="dayGutter"></div>
+        <div class="gridz" id="dayGrid"></div>
+      </div>
+      <div class="hint"><b>Tap</b> a cell to log 15 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it.</div>
+    </div>
   </div>
+
+  <div id="weektab">
+    <div class="dayhead" id="dayhead"></div>
+    <div id="gridwrap">
+      <div class="board">
+        <div class="gutter" id="gutter"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="hint">View only — switch to <b>Day</b> to log time.</div>
+    </div>
+  </div>
+
+  <div id="timer"></div>
 
   <div id="totals"></div>
 
   <footer>
     <div class="fabs" id="fabs">
-      <button class="fab" id="swfab" title="Stopwatch">⏱</button>
       <button class="fab primary" id="addact" title="Add activity">+</button>
     </div>
     <div class="chips" id="chips"></div>
@@ -261,6 +344,7 @@
 <script>
 const SLOTS=96, DAYS=7, N=SLOTS*DAYS;
 const LEGACY_SLOTS=48;
+const CELLZ=34; // must match --cellz in CSS
 const DAYNAMES=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const SWATCH=["#2E8FD4","#6B4FC9","#17A2A2","#2FAE72","#C08A2E","#E2593A","#D8579B","#E8B93E","#6B7A94","#9C6BE0","#4FBF9F","#E0704F"];
@@ -303,13 +387,16 @@ let sel=cats[0].id;
 let undoStack=[];
 let newColor=SWATCH[0];
 let runningTimer=null;
+let dOff=dayIndexInWeek(new Date());
 
 const $=s=>document.querySelector(s);
 const grid=$("#grid");
+const dayGrid=$("#dayGrid");
 
 function mondayOf(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 function keyOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function shift(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function dayIndexInWeek(d){const mon=mondayOf(d);return Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-mon)/86400000)}
 function catOf(id){return cats.find(c=>c.id===id)}
 function fmtH(h){
   const q=Math.round(h*4);
@@ -363,8 +450,26 @@ function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/ste
     }
   }
 })();
+(function buildDay(){
+  const gut=$("#dayGutter");
+  for(let h=0;h<24;h++){
+    const d=document.createElement("div");
+    d.textContent=hourLabel(h);
+    if(h%6===0)d.className="key";
+    gut.appendChild(d);
+  }
+  for(let r=0;r<SLOTS;r++){
+    const c=document.createElement("div");
+    c.className="cellz"+(r%4===3?" h":"")+((r+1)%24===0?" q":"");
+    c.appendChild(document.createElement("i"));
+    dayGrid.appendChild(c);
+  }
+})();
 
 /* ---------- render ---------- */
+function baseCls(i){const r=i%SLOTS;return "cell"+(r%4===3?" h":"")+((r+1)%24===0?" q":"")}
+function baseClsZ(r){return "cellz"+(r%4===3?" h":"")+((r+1)%24===0?" q":"")}
+
 function paintCells(){
   const cells=grid.children;
   for(let k=0;k<cells.length;k++){
@@ -382,7 +487,23 @@ function paintCells(){
     el.firstChild.textContent=(prev!==id&&next===id)?c.name.slice(0,7):"";
   }
 }
-function baseCls(i){const r=i%SLOTS;return "cell"+(r%4===3?" h":"")+((r+1)%24===0?" q":"")}
+function paintDay(){
+  const cells=dayGrid.children;
+  for(let r=0;r<SLOTS;r++){
+    const el=cells[r], i=dOff*SLOTS+r, id=week[i];
+    el.dataset.i=i;
+    const c=id?catOf(id):null;
+    if(!c){
+      el.style.background="";el.className=baseClsZ(r);el.firstChild.textContent="";
+      continue;
+    }
+    const prev=r>0?week[dOff*SLOTS+r-1]:null;
+    const next=r<SLOTS-1?week[dOff*SLOTS+r+1]:null;
+    el.style.background=c.color;
+    el.className=baseClsZ(r)+" on "+(light(c.color)?"light":"dark")+(next===id?"":" tail");
+    el.firstChild.textContent=(prev!==id)?c.name:"";
+  }
+}
 
 function renderHead(){
   const h=$("#dayhead");h.innerHTML='<div class="sp"></div>';
@@ -399,6 +520,12 @@ function renderHead(){
   const isNow=keyOf(mondayOf(new Date()))===keyOf(cur);
   $("#wksub").textContent=isNow?"THIS WEEK":cur.getFullYear();
 }
+function renderDayNav(){
+  const dt=shift(cur,dOff);
+  const isToday=keyOf(dt)===keyOf(new Date());
+  $("#daylabel").innerHTML=DAYNAMES[dOff]+" "+MONTHS[dt.getMonth()]+" "+dt.getDate()
+    +"<small>"+(isToday?"TODAY":dt.getFullYear())+"</small>";
+}
 
 function totalsByCat(){
   const m={};for(const id of week){if(id)m[id]=(m[id]||0)+1}
@@ -414,7 +541,6 @@ function renderMeter(){
   }
   $("#logged").textContent=fmtH(used/4);
   $("#unlogged").textContent=fmtH((N-used)/4)+" h unlogged";
-  $("#hint").style.display=used?"none":"block";
 }
 
 function renderTotals(){
@@ -424,7 +550,7 @@ function renderTotals(){
   html+='<div style="font-family:var(--mono);font-size:10px;color:var(--dimmer);letter-spacing:.06em;margin-top:6px">'
       +(used?Math.round(used/N*100)+"% OF THE WEEK ACCOUNTED FOR":"NOTHING LOGGED YET")+'</div>';
   if(!used){
-    html+='<div class="empty">Fill in the week grid and this page will show where the hours actually went — per category, per day.</div>';
+    html+='<div class="empty">Fill in the day view and this page will show where the hours actually went — per category, per day.</div>';
     $("#totals").innerHTML=html;return;
   }
   html+='<div class="cap">Where the hours go</div>';
@@ -478,7 +604,11 @@ function renderChips(){
   a.onclick=openCats;
   el.appendChild(a);
 }
-function renderAll(){paintCells();renderMeter();if($("#totals").style.display==="block")renderTotals()}
+function renderAll(){
+  paintCells();paintDay();renderMeter();
+  if($("#totals").style.display==="block")renderTotals();
+  if($("#timer").style.display==="block")renderStopwatchTab();
+}
 
 /* ---------- editing ---------- */
 let saveT=null;
@@ -492,54 +622,56 @@ function setCell(i,how){
   if(how==="toggle"&&week[i]===v)week[i]=null;else week[i]=v;
 }
 
-let holdT=null,painting=false,sx=0,sy=0,startI=-1,moved=false;
-function cellAt(x,y){
+function cellAt(x,y,sel){
   const el=document.elementFromPoint(x,y);
   if(!el)return -1;
-  const c=el.closest?el.closest(".cell"):null;
+  const c=el.closest?el.closest(sel||".cell"):null;
   return c?+c.dataset.i:-1;
 }
-grid.addEventListener("touchstart",e=>{
-  const t=e.touches[0];sx=t.clientX;sy=t.clientY;moved=false;
-  startI=cellAt(sx,sy);
+
+/* single-day zoomed grid: press/hold/drag to paint, tap to toggle */
+let holdT=null,painting=false,sy=0,startI=-1,moved=false;
+dayGrid.addEventListener("touchstart",e=>{
+  const t=e.touches[0];sy=t.clientY;moved=false;
+  startI=cellAt(t.clientX,t.clientY,".cellz");
   if(startI<0)return;
   holdT=setTimeout(()=>{
-    painting=true;snapshot();setCell(startI,"set");paintCells();renderMeter();save();
+    painting=true;snapshot();setCell(startI,"set");renderAll();save();
     if(navigator.vibrate)navigator.vibrate(8);
   },170);
 },{passive:true});
-grid.addEventListener("touchmove",e=>{
+dayGrid.addEventListener("touchmove",e=>{
   const t=e.touches[0];
   if(painting){
     e.preventDefault();
-    const i=cellAt(t.clientX,t.clientY);
-    if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");paintCells();renderMeter();save()}
+    const i=cellAt(t.clientX,t.clientY,".cellz");
+    if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
     return;
   }
-  if(Math.abs(t.clientX-sx)>9||Math.abs(t.clientY-sy)>9){moved=true;clearTimeout(holdT)}
+  if(Math.abs(t.clientY-sy)>9){moved=true;clearTimeout(holdT)}
 },{passive:false});
-grid.addEventListener("touchend",()=>{
+dayGrid.addEventListener("touchend",()=>{
   clearTimeout(holdT);
-  if(!painting&&!moved&&startI>=0){snapshot();setCell(startI,"toggle");paintCells();renderMeter();save()}
+  if(!painting&&!moved&&startI>=0){snapshot();setCell(startI,"toggle");renderAll();save()}
   painting=false;startI=-1;
 });
-grid.addEventListener("touchcancel",()=>{clearTimeout(holdT);painting=false});
+dayGrid.addEventListener("touchcancel",()=>{clearTimeout(holdT);painting=false});
 /* mouse (desktop preview) */
 let mdown=false;
-grid.addEventListener("mousedown",e=>{
-  const i=cellAt(e.clientX,e.clientY);if(i<0)return;
-  mdown=true;snapshot();setCell(i,"toggle");paintCells();renderMeter();save();e.preventDefault();
+dayGrid.addEventListener("mousedown",e=>{
+  const i=cellAt(e.clientX,e.clientY,".cellz");if(i<0)return;
+  mdown=true;snapshot();setCell(i,"toggle");renderAll();save();e.preventDefault();
 });
 window.addEventListener("mousemove",e=>{
   if(!mdown)return;
-  const i=cellAt(e.clientX,e.clientY);
-  if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");paintCells();renderMeter();save()}
+  const i=cellAt(e.clientX,e.clientY,".cellz");
+  if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
 });
 window.addEventListener("mouseup",()=>{mdown=false});
 
 $("#undo").onclick=()=>{
   if(!undoStack.length)return;
-  week=undoStack.pop();paintCells();renderMeter();renderTotals();save();
+  week=undoStack.pop();renderAll();save();
 };
 
 /* ---------- navigation ---------- */
@@ -562,23 +694,27 @@ async function loadWeek(){
   const d=await store.get("tt:w:"+keyOf(cur));
   week=migrateWeek(d)||new Array(N).fill(null);
   undoStack=[];
-  renderHead();paintCells();renderMeter();renderTotals();
+  renderHead();renderDayNav();paintCells();paintDay();renderMeter();renderTotals();
 }
 $("#prev").onclick=()=>{cur=shift(cur,-7);loadWeek()};
 document.querySelectorAll(".tab").forEach(t=>{
   t.onclick=()=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
     t.classList.add("on");
-    const g=t.dataset.v==="grid";
-    $("#gridwrap").style.display=g?"block":"none";
-    $("#dayhead").style.display=g?"flex":"none";
-    $("#totals").style.display=g?"none":"block";
-    $("#fabs").style.display=g?"flex":"none";
-    if(!g)renderTotals();
+    const v=t.dataset.v;
+    $("#daytab").style.display=v==="day"?"flex":"none";
+    $("#weektab").style.display=v==="week"?"flex":"none";
+    $("#timer").style.display=v==="timer"?"block":"none";
+    $("#totals").style.display=v==="totals"?"block":"none";
+    $("#fabs").style.display=v==="day"?"flex":"none";
+    if(v==="day"){renderDayNav();paintDay()}
+    if(v==="week")paintCells();
+    if(v==="timer")renderStopwatchTab();
+    if(v==="totals")renderTotals();
   };
 });
 
-/* next-week button lives in the nav row */
+/* next-week / next-day buttons */
 (function addNext(){
   const b=document.createElement("button");
   b.className="ib";b.textContent="›";
@@ -586,13 +722,26 @@ document.querySelectorAll(".tab").forEach(t=>{
   $("#prev").parentNode.insertBefore(b,$("#undo"));
 })();
 
+async function gotoDay(delta){
+  let off=dOff+delta;
+  if(off<0){cur=shift(cur,-7);dOff=off+7;await loadWeek()}
+  else if(off>6){cur=shift(cur,7);dOff=off-7;await loadWeek()}
+  else{dOff=off;renderDayNav();paintDay()}
+}
+$("#dayprev").onclick=()=>gotoDay(-1);
+$("#daynext").onclick=()=>gotoDay(1);
+$("#daylabel").onclick=async()=>{
+  const t=new Date(), newCur=mondayOf(t), newOff=dayIndexInWeek(t);
+  if(keyOf(newCur)!==keyOf(cur)){cur=newCur;dOff=newOff;await loadWeek()}
+  else{dOff=newOff;renderDayNav();paintDay()}
+};
+
 /* ---------- sheets ---------- */
 const scrim=$("#scrim"),sheet=$("#sheet");
 scrim.onclick=e=>{if(e.target===scrim)closeSheet()};
 function closeSheet(){scrim.classList.remove("on");sheet.innerHTML=""}
 $("#menu").onclick=openMenu;
 $("#addact").onclick=openAddActivity;
-$("#swfab").onclick=()=>{runningTimer?openStopwatchRunning():openStopwatchStart()};
 
 function buildCatPicker(initial,onPick){
   const wrap=document.createElement("div");wrap.className="catpick";
@@ -610,25 +759,16 @@ function buildCatPicker(initial,onPick){
   return wrap;
 }
 
-/* ---------- stopwatch ---------- */
-function renderSwFab(){
-  const b=$("#swfab");
-  if(runningTimer){
-    const c=catOf(runningTimer.catId)||cats[0];
-    b.classList.add("running");
-    b.style.background=c.color;
-    b.style.color=light(c.color)?"rgba(0,0,0,.8)":"#fff";
-    b.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
-  }else{
-    b.classList.remove("running");
-    b.style.background="";b.style.color="";
-    b.textContent="⏱";
-  }
+/* ---------- stopwatch tab ---------- */
+function updateTimerTabLabel(){
+  const tab=document.querySelector('.tab[data-v="timer"]');
+  if(!tab)return;
+  tab.textContent=runningTimer?("● "+fmtElapsed(Date.now()-runningTimer.startTs)):"Timer";
 }
 setInterval(()=>{
   if(!runningTimer)return;
-  renderSwFab();
-  const el=$("#swClock");if(el)el.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
+  updateTimerTabLabel();
+  const el=$("#swTabClock");if(el)el.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
 },1000);
 
 async function applyRange(startDate,endDate,catId){
@@ -639,7 +779,7 @@ async function applyRange(startDate,endDate,catId){
   for(;t<end;t+=15*60000){
     const d=new Date(t);
     const mon=mondayOf(d);
-    const dayIdx=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-mon)/86400000);
+    const dayIdx=dayIndexInWeek(d);
     if(dayIdx<0||dayIdx>6)continue;
     const slot=d.getHours()*4+Math.floor(d.getMinutes()/15);
     const wk=keyOf(mon);
@@ -661,65 +801,64 @@ async function applyRange(startDate,endDate,catId){
   sel=catId;renderChips();
 }
 
-function openStopwatchStart(){
-  let apCat=sel!=="__erase"?sel:cats[0].id;
-  sheet.innerHTML='<h3>Start Stopwatch</h3>';
-  const cap=document.createElement("div");cap.className="cap";cap.style.margin="0 0 8px";cap.textContent="Category";
-  sheet.appendChild(cap);
-  sheet.appendChild(buildCatPicker(apCat,id=>apCat=id));
+function renderStopwatchTab(){
+  const el=$("#timer");
+  let html="";
+  if(runningTimer){
+    const c=catOf(runningTimer.catId)||cats[0];
+    html+='<div class="swrunning" style="background:'+c.color+';color:'+(light(c.color)?"rgba(0,0,0,.82)":"#fff")+'">'
+      +'<div class="swrunning-name">'+esc(c.name)+'</div>'
+      +'<div class="swrunning-clock" id="swTabClock">'+fmtElapsed(Date.now()-runningTimer.startTs)+'</div>'
+      +'<div class="swrunning-started">Started '+fmtClockTime(new Date(runningTimer.startTs))+'</div>'
+      +'<div class="swrunning-actions">'
+        +'<button class="swbtn" id="swStopBtn">Stop &amp; Log</button>'
+        +'<button class="swbtn ghost" id="swDiscardBtn">Discard</button>'
+      +'</div></div>'
+      +'<div class="swhint">Tap another activity to switch to it — the current one logs automatically.</div>';
+  }else{
+    html+='<div class="swhint">Tap an activity to start timing it.</div>';
+  }
+  html+='<div class="tiles" id="tiles"></div>';
+  el.innerHTML=html;
 
-  const startBtn=document.createElement("button");
-  startBtn.className="act";startBtn.style.textAlign="center";startBtn.style.fontWeight="600";startBtn.style.marginTop="16px";
-  startBtn.textContent="Start";
-  startBtn.onclick=async()=>{
-    runningTimer={catId:apCat,startTs:Date.now()};
-    await store.set("tt:running",runningTimer);
-    renderSwFab();closeSheet();
-  };
-  sheet.appendChild(startBtn);
+  const tiles=$("#tiles");
+  cats.forEach(c=>{
+    const isActive=!!(runningTimer&&runningTimer.catId===c.id);
+    const b=document.createElement("button");
+    b.className="tile"+(isActive?" active":"")+(runningTimer&&!isActive?" dim":"");
+    b.style.background=c.color;
+    b.style.color=light(c.color)?"rgba(0,0,0,.85)":"#fff";
+    b.innerHTML='<span>'+esc(c.name)+'</span>'+(isActive?'<span class="tile-tag">running</span>':"");
+    b.onclick=()=>tileTap(c.id);
+    tiles.appendChild(b);
+  });
 
-  scrim.classList.add("on");
+  if(runningTimer){
+    $("#swStopBtn").onclick=async()=>{
+      const startDate=new Date(runningTimer.startTs), endDate=new Date(), catId=runningTimer.catId;
+      runningTimer=null;await store.del("tt:running");updateTimerTabLabel();
+      await applyRange(startDate,endDate,catId);
+      renderStopwatchTab();
+    };
+    $("#swDiscardBtn").onclick=()=>{
+      if(!confirm("Discard this timer without logging it?"))return;
+      runningTimer=null;store.del("tt:running");updateTimerTabLabel();renderStopwatchTab();
+    };
+  }
 }
-
-function openStopwatchRunning(){
-  const c=catOf(runningTimer.catId)||cats[0];
-  sheet.innerHTML='<h3>Stopwatch Running</h3>';
-
-  const row=document.createElement("div");row.className="catrow";row.style.borderBottom="0";
-  row.innerHTML='<u style="background:'+c.color+'"></u><span>'+esc(c.name)+'</span>';
-  sheet.appendChild(row);
-
-  const clock=document.createElement("div");clock.className="big";clock.id="swClock";
-  clock.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
-  sheet.appendChild(clock);
-
-  const startedAt=document.createElement("div");
-  startedAt.style.cssText="font-family:var(--mono);font-size:10px;color:var(--dimmer);margin-top:4px";
-  startedAt.textContent="Started "+fmtClockTime(new Date(runningTimer.startTs));
-  sheet.appendChild(startedAt);
-
-  const stopBtn=document.createElement("button");
-  stopBtn.className="act";stopBtn.style.textAlign="center";stopBtn.style.fontWeight="600";stopBtn.style.marginTop="20px";
-  stopBtn.textContent="Stop & Log";
-  stopBtn.onclick=async()=>{
-    const startDate=new Date(runningTimer.startTs), endDate=new Date(), catId=runningTimer.catId;
-    runningTimer=null;store.del("tt:running");renderSwFab();
-    await applyRange(startDate,endDate,catId);
-    closeSheet();
-    document.querySelector('.tab[data-v="grid"]').click();
-  };
-  sheet.appendChild(stopBtn);
-
-  const discardBtn=document.createElement("button");
-  discardBtn.className="act danger";discardBtn.style.textAlign="center";discardBtn.style.marginTop="7px";
-  discardBtn.textContent="Discard";
-  discardBtn.onclick=()=>{
-    if(!confirm("Discard this timer without logging it?"))return;
-    runningTimer=null;store.del("tt:running");renderSwFab();closeSheet();
-  };
-  sheet.appendChild(discardBtn);
-
-  scrim.classList.add("on");
+async function tileTap(catId){
+  if(!runningTimer){
+    runningTimer={catId,startTs:Date.now()};
+    await store.set("tt:running",runningTimer);
+    updateTimerTabLabel();renderStopwatchTab();
+    return;
+  }
+  if(runningTimer.catId===catId)return;
+  const startDate=new Date(runningTimer.startTs), endDate=new Date(), prevCat=runningTimer.catId;
+  await applyRange(startDate,endDate,prevCat);
+  runningTimer={catId,startTs:Date.now()};
+  await store.set("tt:running",runningTimer);
+  updateTimerTabLabel();renderStopwatchTab();
 }
 
 function openAddActivity(){
@@ -778,9 +917,11 @@ function openAddActivity(){
     if(e<=s){alert("End time must be after start time.");return}
     snapshot();
     for(let r=s;r<e;r++)week[apDay*SLOTS+r]=apCat;
-    sel=apCat;renderChips();renderAll();save();closeSheet();
-    document.querySelector('.tab[data-v="grid"]').click();
-    $("#gridwrap").scrollTop=Math.max(0,(Math.floor(s/4)-2)*60);
+    sel=apCat;renderChips();
+    dOff=apDay;
+    renderAll();save();closeSheet();
+    document.querySelector('.tab[data-v="day"]').click();
+    $("#daywrap").scrollTop=Math.max(0,(Math.floor(s/4)-2)*CELLZ*4);
   };
   sheet.appendChild(addBtn);
 
@@ -896,9 +1037,10 @@ if("serviceWorker" in navigator){
   sel=cats[0].id;
   renderChips();
   runningTimer=await store.get("tt:running");
-  renderSwFab();
+  updateTimerTabLabel();
   await loadWeek();
   const now=new Date();
+  $("#daywrap").scrollTop=Math.max(0,(now.getHours()-2)*CELLZ*4);
   $("#gridwrap").scrollTop=Math.max(0,(now.getHours()-2)*4*15);
 })();
 </script>
