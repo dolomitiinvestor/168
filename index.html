@@ -272,11 +272,16 @@
   .catpick button u{width:9px;height:9px;border-radius:50%;display:block;text-decoration:none}
   .catpick button.on{color:#0F1220;font-weight:600}
   .timerow{display:flex;align-items:center;gap:10px}
-  .timerow select{
+  .timerow select,.timerow input{
     flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
     border-radius:9px;padding:11px 10px;font-family:var(--mono);font-size:14px;min-width:0;
   }
+  .timerow input::placeholder{color:var(--dimmer)}
   .timerow span{color:var(--dimmer);font-size:12px}
+  .timemode{
+    background:none;border:0;color:var(--dimmer);font-family:var(--body);
+    font-size:11px;text-decoration:underline;padding:0;
+  }
   @media (prefers-reduced-motion:no-preference){
     .cell,.cellz{transition:background-color .09s ease}
   }
@@ -388,6 +393,8 @@ let undoStack=[];
 let newColor=SWATCH[0];
 let runningTimer=null;
 let dOff=dayIndexInWeek(new Date());
+let timeInputMode="pick";
+try{timeInputMode=localStorage.getItem("tt:timemode")||"pick"}catch(e){}
 
 const $=s=>document.querySelector(s);
 const grid=$("#grid");
@@ -417,6 +424,32 @@ function qLabel(r){
   const h=Math.floor(r/4), m=(r%4)*15;
   const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
   return hh+(m?":"+String(m).padStart(2,"0"):"")+ap;
+}
+/* accepts "9", "9:30am", "9:30pm", "21:30" — no am/pm means 1-11 is AM, 12 is noon, 13-23 is 24h */
+function parseTimeStr(s){
+  s=(s||"").trim();
+  if(!s)return null;
+  const m=s.match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?$/i);
+  if(!m)return null;
+  let h=+m[1];
+  const mins=m[2]!==undefined?+m[2]:0;
+  if(mins>59)return null;
+  const ap=m[3]?m[3].toLowerCase():null;
+  if(ap==="a"){if(h<1||h>12)return null;if(h===12)h=0}
+  else if(ap==="p"){if(h<1||h>12)return null;if(h!==12)h+=12}
+  else if(h>23)return null;
+  return Math.max(0,Math.min(SLOTS,Math.round((h*60+mins)/15)));
+}
+/* first empty slot after the latest logged block that day, or "now" if the day is empty */
+function defaultStartForDay(dayIdx){
+  let lastEnd=-1;
+  for(let r=0;r<SLOTS;r++)if(week[dayIdx*SLOTS+r]!=null)lastEnd=r+1;
+  if(lastEnd>=0)return Math.min(SLOTS-1,lastEnd);
+  if(keyOf(shift(cur,dayIdx))===keyOf(new Date())){
+    const now=new Date();
+    return Math.min(SLOTS-4,Math.max(0,now.getHours()*4+Math.floor(now.getMinutes()/15)));
+  }
+  return 0;
 }
 function fmtClockTime(d){
   const h=d.getHours(),m=d.getMinutes(),ap=h<12?"a":"p",hh=h%12===0?12:h%12;
@@ -866,8 +899,7 @@ function openAddActivity(){
   let apDay=0;
   for(let d=0;d<DAYS;d++)if(keyOf(shift(cur,d))===today){apDay=d;break}
   let apCat=sel!=="__erase"?sel:cats[0].id;
-  const now=new Date();
-  let apStart=Math.min(SLOTS-4,Math.max(0,now.getHours()*4+Math.floor(now.getMinutes()/15)));
+  let apStart=defaultStartForDay(apDay);
   let apEnd=Math.min(SLOTS,apStart+4);
 
   sheet.innerHTML='<h3>Add Activity</h3>';
@@ -877,7 +909,11 @@ function openAddActivity(){
     const b=document.createElement("button");
     b.textContent=nm;
     if(d===apDay)b.className="on";
-    b.onclick=()=>{apDay=d;dayWrap.querySelectorAll("button").forEach(x=>x.className="");b.className="on"};
+    b.onclick=()=>{
+      apDay=d;dayWrap.querySelectorAll("button").forEach(x=>x.className="");b.className="on";
+      apStart=defaultStartForDay(apDay);apEnd=Math.min(SLOTS,apStart+4);
+      setPickerTimes(apStart,apEnd);setTypeTimes(apStart,apEnd);
+    };
     dayWrap.appendChild(b);
   });
   sheet.appendChild(dayWrap);
@@ -886,34 +922,77 @@ function openAddActivity(){
   sheet.appendChild(catCap);
   sheet.appendChild(buildCatPicker(apCat,id=>apCat=id));
 
-  const timeCap=document.createElement("div");timeCap.className="cap";timeCap.style.margin="16px 0 8px";timeCap.textContent="Time";
+  const timeCap=document.createElement("div");timeCap.className="cap";
+  timeCap.style.cssText="margin:16px 0 8px;display:flex;justify-content:space-between;align-items:baseline";
+  const timeCapLabel=document.createElement("span");timeCapLabel.textContent="Time";
+  const modeBtn=document.createElement("button");modeBtn.className="timemode";
+  timeCap.appendChild(timeCapLabel);timeCap.appendChild(modeBtn);
   sheet.appendChild(timeCap);
-  const timeWrap=document.createElement("div");timeWrap.className="timerow";
+
+  const pickWrap=document.createElement("div");pickWrap.className="timerow";
   const selStart=document.createElement("select"), selEnd=document.createElement("select");
   for(let r=0;r<SLOTS;r++){
     const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
-    if(r===apStart)o.selected=true;
     selStart.appendChild(o);
   }
   for(let r=1;r<=SLOTS;r++){
     const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
-    if(r===apEnd)o.selected=true;
     selEnd.appendChild(o);
   }
   selStart.onchange=()=>{
     const v=+selStart.value;
     if(+selEnd.value<=v){selEnd.value=Math.min(SLOTS,v+4)}
   };
-  timeWrap.appendChild(selStart);
-  const to=document.createElement("span");to.textContent="to";timeWrap.appendChild(to);
-  timeWrap.appendChild(selEnd);
-  sheet.appendChild(timeWrap);
+  pickWrap.appendChild(selStart);
+  const to1=document.createElement("span");to1.textContent="to";pickWrap.appendChild(to1);
+  pickWrap.appendChild(selEnd);
+  sheet.appendChild(pickWrap);
+
+  const typeWrap=document.createElement("div");typeWrap.className="timerow";
+  const typeStart=document.createElement("input"),typeEnd=document.createElement("input");
+  typeStart.type=typeEnd.type="text";
+  typeStart.autocomplete=typeEnd.autocomplete="off";
+  typeStart.placeholder="9:00a";typeEnd.placeholder="10:00a";
+  typeWrap.appendChild(typeStart);
+  const to2=document.createElement("span");to2.textContent="to";typeWrap.appendChild(to2);
+  typeWrap.appendChild(typeEnd);
+  sheet.appendChild(typeWrap);
+
+  function setPickerTimes(s,e){selStart.value=s;selEnd.value=e}
+  function setTypeTimes(s,e){typeStart.value=qLabel(s);typeEnd.value=qLabel(e)}
+  setPickerTimes(apStart,apEnd);setTypeTimes(apStart,apEnd);
+
+  function applyMode(){
+    pickWrap.style.display=timeInputMode==="pick"?"flex":"none";
+    typeWrap.style.display=timeInputMode==="type"?"flex":"none";
+    modeBtn.textContent=timeInputMode==="pick"?"Type it in":"Pick instead";
+  }
+  modeBtn.onclick=()=>{
+    if(timeInputMode==="pick"){
+      setTypeTimes(+selStart.value,+selEnd.value);
+      timeInputMode="type";
+    }else{
+      const s=parseTimeStr(typeStart.value),e=parseTimeStr(typeEnd.value);
+      if(s!=null)selStart.value=s;
+      if(e!=null)selEnd.value=e;
+      timeInputMode="pick";
+    }
+    try{localStorage.setItem("tt:timemode",timeInputMode)}catch(e){}
+    applyMode();
+  };
+  applyMode();
 
   const addBtn=document.createElement("button");
   addBtn.className="act";addBtn.style.textAlign="center";addBtn.style.fontWeight="600";addBtn.style.marginTop="16px";
   addBtn.textContent="Add";
   addBtn.onclick=()=>{
-    const s=+selStart.value, e=+selEnd.value;
+    let s,e;
+    if(timeInputMode==="type"){
+      s=parseTimeStr(typeStart.value);e=parseTimeStr(typeEnd.value);
+      if(s==null||e==null){alert("Couldn't read one of those times. Try things like 9:00a, 2:30pm, or 14:30.");return}
+    }else{
+      s=+selStart.value;e=+selEnd.value;
+    }
     if(e<=s){alert("End time must be after start time.");return}
     snapshot();
     for(let r=s;r<e;r++)week[apDay*SLOTS+r]=apCat;
