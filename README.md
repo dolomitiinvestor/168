@@ -8,15 +8,23 @@ your browser's localStorage on that device.
 
 ## Use it
 
-- **Tap** a cell to log 15 minutes of the selected category.
-- **Press and hold ~0.2s, then drag** to paint a longer block. (The hold is what stops
-  the page from scrolling while you drag.)
-- Tap a filled cell again to clear it. Or pick **Erase** and drag.
-- **Totals** tab shows hours and % of 168 per category, an average per day, and a
-  stacked bar for each day of the week.
-- **↺** undoes the last stroke. **‹ ›** move between weeks — each week is stored
-  separately. **⋯** has copy-last-week, category editing, backup export/import, and
-  clear-week.
+Four tabs:
+
+- **Day** — data entry, one day at a time, zoomed in for easy tapping. **Tap** a
+  cell to log 15 minutes of the selected category. **Press and hold ~0.2s, then
+  drag** to paint a longer block. (The hold is what stops the page from scrolling
+  while you drag.) Tap a filled cell again to clear it, or pick **Erase** and drag.
+  **‹ ›** next to the date move a day at a time; tap the date to jump back to today.
+- **Week** — the whole week at a glance, view only. Use **Day** to make changes.
+- **Timer** — a big tile per activity. Tap one to start timing it; tap a different
+  tile to switch (the previous activity is logged automatically); use **Stop & Log**
+  or **Discard** on the running card to end it.
+- **Totals** — hours and % of 168 per category, an average per day, and a stacked
+  bar for each day of the week.
+
+**↺** undoes the last stroke. **‹ ›** in the header move between weeks — each week
+is stored separately. **⋯** has copy-last-week, category editing, backup
+export/import, and clear-week.
 
 ## Put it on GitHub Pages
 
@@ -49,8 +57,11 @@ Everything is in `index.html`. A few things you may want to edit:
 
 - Default categories and colors: the `DEFAULTS` array near the top of the script.
 - Color choices offered when adding a category: `SWATCH`.
-- Block size: `--cell` in the CSS (`15px` per 15 minutes). Raising it makes cells easier
-  to hit but pushes more of the day below the fold.
+- Block size: `--cell` in the CSS (`15px` per 15 minutes) for the Week overview, and
+  `--cellz` (`34px`) for the zoomed-in Day view. Raising either makes cells easier
+  to hit but pushes more of the day below the fold. If you change `--cellz`, also
+  update the matching `CELLZ` constant near the top of the script (used for
+  scroll-position math).
 - Hold delay before painting starts: `170` (ms) in the `touchstart` handler.
 
 If you edit any file after deploying, bump `CACHE = "168-v1"` in `sw.js` to `"168-v2"`,
