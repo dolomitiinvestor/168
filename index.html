@@ -317,7 +317,7 @@
         <div class="gutterz" id="dayGutter"></div>
         <div class="gridz" id="dayGrid"></div>
       </div>
-      <div class="hint"><b>Tap</b> a cell to log 15 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it.</div>
+      <div class="hint"><b>Tap</b> a cell to log 15 minutes. <b>Press and hold, then drag</b> to fill a block. Tap a filled cell again to clear it. Need exact minutes? Use <b>+ → Type it in</b>.</div>
     </div>
   </div>
 
@@ -347,8 +347,12 @@
 <div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
 
 <script>
-const SLOTS=96, DAYS=7, N=SLOTS*DAYS;
-const LEGACY_SLOTS=48;
+/* week[] is minute-resolution: SLOTS=1440 minutes/day. The grid UI still taps/drags in
+   15-minute blocks (QSLOTS=96/day) — each block writes all 15 underlying minutes, so any
+   new stroke or typed/stopwatch entry always overwrites (blocks out) whatever was there. */
+const SLOTS=1440, DAYS=7, N=SLOTS*DAYS;
+const QSLOTS=96;
+const LEGACY_SLOTS=48; // ancient 30-min format, migration only
 const CELLZ=34; // must match --cellz in CSS
 const DAYNAMES=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -419,13 +423,22 @@ function hourLabel(h){
   const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
   return hh+ap;
 }
-function qLabel(r){
-  if(r>=SLOTS)return "12a";
-  const h=Math.floor(r/4), m=(r%4)*15;
+/* label for a quarter-hour grid slot (0..QSLOTS), used by the coarse Pick dropdown */
+function qLabel(q){
+  if(q>=QSLOTS)return "12a";
+  const h=Math.floor(q/4), m=(q%4)*15;
   const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
   return hh+(m?":"+String(m).padStart(2,"0"):"")+ap;
 }
-/* accepts "9", "9:30am", "9:30pm", "21:30" — no am/pm means 1-11 is AM, 12 is noon, 13-23 is 24h */
+/* label for an exact minute-of-day (0..SLOTS), used by the Type field */
+function minuteLabel(mn){
+  if(mn>=SLOTS)return "12:00a";
+  const h=Math.floor(mn/60), m=mn%60;
+  const ap=h<12?"a":"p", hh=h%12===0?12:h%12;
+  return hh+":"+String(m).padStart(2,"0")+ap;
+}
+/* accepts "9", "9:30am", "9:30pm", "21:30" — no am/pm means 1-11 is AM, 12 is noon, 13-23 is 24h.
+   Returns an exact minute-of-day (0..SLOTS), not rounded to any block. */
 function parseTimeStr(s){
   s=(s||"").trim();
   if(!s)return null;
@@ -438,16 +451,16 @@ function parseTimeStr(s){
   if(ap==="a"){if(h<1||h>12)return null;if(h===12)h=0}
   else if(ap==="p"){if(h<1||h>12)return null;if(h!==12)h+=12}
   else if(h>23)return null;
-  return Math.max(0,Math.min(SLOTS,Math.round((h*60+mins)/15)));
+  return Math.max(0,Math.min(SLOTS,h*60+mins));
 }
-/* first empty slot after the latest logged block that day, or "now" if the day is empty */
+/* the minute right after the day's latest logged minute, or "now" if the day is empty */
 function defaultStartForDay(dayIdx){
   let lastEnd=-1;
-  for(let r=0;r<SLOTS;r++)if(week[dayIdx*SLOTS+r]!=null)lastEnd=r+1;
+  for(let m=0;m<SLOTS;m++)if(week[dayIdx*SLOTS+m]!=null)lastEnd=m+1;
   if(lastEnd>=0)return Math.min(SLOTS-1,lastEnd);
   if(keyOf(shift(cur,dayIdx))===keyOf(new Date())){
     const now=new Date();
-    return Math.min(SLOTS-4,Math.max(0,now.getHours()*4+Math.floor(now.getMinutes()/15)));
+    return Math.min(SLOTS-1,Math.max(0,now.getHours()*60+now.getMinutes()));
   }
   return 0;
 }
@@ -461,8 +474,8 @@ function fmtElapsed(ms){
   const m=Math.floor(s/60);s%=60;
   return (h?h+":"+String(m).padStart(2,"0"):String(m))+":"+String(s).padStart(2,"0");
 }
-function floor15(d){const step=15*60000;return new Date(Math.floor(d.getTime()/step)*step)}
-function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/step)*step)}
+function floor1(d){const step=60000;return new Date(Math.floor(d.getTime()/step)*step)}
+function ceil1(d){const step=60000;return new Date(Math.ceil(d.getTime()/step)*step)}
 
 /* ---------- build DOM ---------- */
 (function build(){
@@ -473,11 +486,11 @@ function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/ste
     if(h%6===0)d.className="key";
     gut.appendChild(d);
   }
-  for(let r=0;r<SLOTS;r++){
+  for(let q=0;q<QSLOTS;q++){
     for(let d=0;d<DAYS;d++){
       const c=document.createElement("div");
-      c.className="cell"+(r%4===3?" h":"")+((r+1)%24===0?" q":"");
-      c.dataset.i=d*SLOTS+r;
+      c.className="cell"+(q%4===3?" h":"")+((q+1)%24===0?" q":"");
+      c.dataset.i=d*QSLOTS+q;
       c.appendChild(document.createElement("i"));
       grid.appendChild(c);
     }
@@ -491,49 +504,53 @@ function ceil15(d){const step=15*60000;return new Date(Math.ceil(d.getTime()/ste
     if(h%6===0)d.className="key";
     gut.appendChild(d);
   }
-  for(let r=0;r<SLOTS;r++){
+  for(let q=0;q<QSLOTS;q++){
     const c=document.createElement("div");
-    c.className="cellz"+(r%4===3?" h":"")+((r+1)%24===0?" q":"");
+    c.className="cellz"+(q%4===3?" h":"")+((q+1)%24===0?" q":"");
     c.appendChild(document.createElement("i"));
     dayGrid.appendChild(c);
   }
 })();
 
 /* ---------- render ---------- */
-function baseCls(i){const r=i%SLOTS;return "cell"+(r%4===3?" h":"")+((r+1)%24===0?" q":"")}
-function baseClsZ(r){return "cellz"+(r%4===3?" h":"")+((r+1)%24===0?" q":"")}
+function baseCls(q){return "cell"+(q%4===3?" h":"")+((q+1)%24===0?" q":"")}
+function baseClsZ(q){return "cellz"+(q%4===3?" h":"")+((q+1)%24===0?" q":"")}
+/* the category shown for a 15-minute grid block: the block's first minute.
+   (a block written by the grid is always uniform; one written by a precise
+   typed/stopwatch entry that doesn't land on a 15-min boundary is approximated) */
+function quarterCat(day,q){return week[day*SLOTS+q*15]}
 
 function paintCells(){
   const cells=grid.children;
   for(let k=0;k<cells.length;k++){
-    const el=cells[k], i=+el.dataset.i, id=week[i];
+    const el=cells[k], i=+el.dataset.i, day=Math.floor(i/QSLOTS), q=i%QSLOTS;
+    const id=quarterCat(day,q);
     const c=id?catOf(id):null;
     if(!c){
-      el.style.background="";el.className=baseCls(i);el.firstChild.textContent="";
+      el.style.background="";el.className=baseCls(q);el.firstChild.textContent="";
       continue;
     }
-    const r=i%SLOTS, day=Math.floor(i/SLOTS);
-    const prev=r>0?week[day*SLOTS+r-1]:null;
-    const next=r<SLOTS-1?week[day*SLOTS+r+1]:null;
+    const prev=q>0?quarterCat(day,q-1):null;
+    const next=q<QSLOTS-1?quarterCat(day,q+1):null;
     el.style.background=c.color;
-    el.className=baseCls(i)+" on "+(light(c.color)?"light":"dark")+(next===id?"":" tail");
+    el.className=baseCls(q)+" on "+(light(c.color)?"light":"dark")+(next===id?"":" tail");
     el.firstChild.textContent=(prev!==id&&next===id)?c.name.slice(0,7):"";
   }
 }
 function paintDay(){
   const cells=dayGrid.children;
-  for(let r=0;r<SLOTS;r++){
-    const el=cells[r], i=dOff*SLOTS+r, id=week[i];
-    el.dataset.i=i;
+  for(let q=0;q<QSLOTS;q++){
+    const el=cells[q], id=quarterCat(dOff,q);
+    el.dataset.i=dOff*QSLOTS+q;
     const c=id?catOf(id):null;
     if(!c){
-      el.style.background="";el.className=baseClsZ(r);el.firstChild.textContent="";
+      el.style.background="";el.className=baseClsZ(q);el.firstChild.textContent="";
       continue;
     }
-    const prev=r>0?week[dOff*SLOTS+r-1]:null;
-    const next=r<SLOTS-1?week[dOff*SLOTS+r+1]:null;
+    const prev=q>0?quarterCat(dOff,q-1):null;
+    const next=q<QSLOTS-1?quarterCat(dOff,q+1):null;
     el.style.background=c.color;
-    el.className=baseClsZ(r)+" on "+(light(c.color)?"light":"dark")+(next===id?"":" tail");
+    el.className=baseClsZ(q)+" on "+(light(c.color)?"light":"dark")+(next===id?"":" tail");
     el.firstChild.textContent=(prev!==id)?c.name:"";
   }
 }
@@ -572,14 +589,14 @@ function renderMeter(){
     const i=document.createElement("i");
     i.style.width=(m[c.id]/N*100)+"%";i.style.background=c.color;rb.appendChild(i);
   }
-  $("#logged").textContent=fmtH(used/4);
-  $("#unlogged").textContent=fmtH((N-used)/4)+" h unlogged";
+  $("#logged").textContent=fmtH(used/60);
+  $("#unlogged").textContent=fmtH((N-used)/60)+" h unlogged";
 }
 
 function renderTotals(){
   const m=totalsByCat(), used=Object.values(m).reduce((a,b)=>a+b,0);
   const list=cats.filter(c=>m[c.id]).sort((a,b)=>m[b.id]-m[a.id]);
-  let html='<div class="big">'+fmtH(used/4)+'<span> / 168 h</span></div>';
+  let html='<div class="big">'+fmtH(used/60)+'<span> / 168 h</span></div>';
   html+='<div style="font-family:var(--mono);font-size:10px;color:var(--dimmer);letter-spacing:.06em;margin-top:6px">'
       +(used?Math.round(used/N*100)+"% OF THE WEEK ACCOUNTED FOR":"NOTHING LOGGED YET")+'</div>';
   if(!used){
@@ -588,7 +605,7 @@ function renderTotals(){
   }
   html+='<div class="cap">Where the hours go</div>';
   for(const c of list){
-    const h=m[c.id]/4;
+    const h=m[c.id]/60;
     html+='<div class="row"><u style="background:'+c.color+'"></u><span class="nm">'+esc(c.name)+'</span>'
       +'<span class="hr">'+fmtH(h)+' h</span><span class="pc">'+Math.round(m[c.id]/N*100)+'%</span></div>'
       +'<div class="bar"><i style="width:'+(m[c.id]/N*100)+'%;background:'+c.color+'"></i></div>'
@@ -596,21 +613,21 @@ function renderTotals(){
   }
   const unl=N-used;
   html+='<div class="row" style="opacity:.6"><u style="background:var(--line)"></u><span class="nm">Unlogged</span>'
-      +'<span class="hr">'+fmtH(unl/4)+' h</span><span class="pc">'+Math.round(unl/N*100)+'%</span></div>';
+      +'<span class="hr">'+fmtH(unl/60)+' h</span><span class="pc">'+Math.round(unl/N*100)+'%</span></div>';
 
   html+='<div class="cap">Day by day</div><div class="days">';
   for(let d=0;d<DAYS;d++){
     html+='<div class="col">';
     for(const c of cats){
-      let n=0;for(let r=0;r<SLOTS;r++)if(week[d*SLOTS+r]===c.id)n++;
+      let n=0;for(let m=0;m<SLOTS;m++)if(week[d*SLOTS+m]===c.id)n++;
       if(n)html+='<i style="height:'+(n/SLOTS*100)+'%;background:'+c.color+'"></i>';
     }
     html+='</div>';
   }
   html+='</div><div class="dlbl">';
   for(let d=0;d<DAYS;d++){
-    let n=0;for(let r=0;r<SLOTS;r++)if(week[d*SLOTS+r])n++;
-    html+='<div>'+DAYNAMES[d][0]+'<b>'+fmtH(n/4)+'</b></div>';
+    let n=0;for(let m=0;m<SLOTS;m++)if(week[d*SLOTS+m])n++;
+    html+='<div>'+DAYNAMES[d][0]+'<b>'+fmtH(n/60)+'</b></div>';
   }
   html+='</div>';
   $("#totals").innerHTML=html;
@@ -650,9 +667,20 @@ function save(){
   saveT=setTimeout(()=>store.set("tt:w:"+keyOf(cur),week),350);
 }
 function snapshot(){undoStack.push(week.slice());if(undoStack.length>30)undoStack.shift()}
+/* i is a flattened grid index: day*QSLOTS+q. Always overwrites all 15 minutes of that
+   block, so a new stroke blocks out whatever was there — grid paint or precise typed entry. */
 function setCell(i,how){
+  const day=Math.floor(i/QSLOTS), q=i%QSLOTS;
   const v=sel==="__erase"?null:sel;
-  if(how==="toggle"&&week[i]===v)week[i]=null;else week[i]=v;
+  const base=day*SLOTS+q*15;
+  if(how==="toggle"){
+    let same=true;
+    for(let m=0;m<15;m++)if(week[base+m]!==v){same=false;break}
+    const nv=same?null:v;
+    for(let m=0;m<15;m++)week[base+m]=nv;
+  }else{
+    for(let m=0;m<15;m++)week[base+m]=v;
+  }
 }
 
 function cellAt(x,y,sel){
@@ -678,7 +706,7 @@ dayGrid.addEventListener("touchmove",e=>{
   if(painting){
     e.preventDefault();
     const i=cellAt(t.clientX,t.clientY,".cellz");
-    if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
+    if(i>=0&&quarterCat(Math.floor(i/QSLOTS),i%QSLOTS)!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
     return;
   }
   if(Math.abs(t.clientY-sy)>9){moved=true;clearTimeout(holdT)}
@@ -698,7 +726,7 @@ dayGrid.addEventListener("mousedown",e=>{
 window.addEventListener("mousemove",e=>{
   if(!mdown)return;
   const i=cellAt(e.clientX,e.clientY,".cellz");
-  if(i>=0&&week[i]!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
+  if(i>=0&&quarterCat(Math.floor(i/QSLOTS),i%QSLOTS)!==(sel==="__erase"?null:sel)){setCell(i,"set");renderAll();save()}
 });
 window.addEventListener("mouseup",()=>{mdown=false});
 
@@ -710,13 +738,23 @@ $("#undo").onclick=()=>{
 /* ---------- navigation ---------- */
 function migrateWeek(d){
   if(!Array.isArray(d))return null;
-  if(d.length===N)return d;
-  if(d.length===LEGACY_SLOTS*DAYS){
+  if(d.length===N)return d; // current minute-resolution format
+  if(d.length===QSLOTS*DAYS){ // previous release: one entry per 15 minutes
     const out=new Array(N).fill(null);
     for(let day=0;day<DAYS;day++){
-      for(let r=0;r<LEGACY_SLOTS;r++){
-        const v=d[day*LEGACY_SLOTS+r], base=day*SLOTS+r*2;
-        out[base]=v;out[base+1]=v;
+      for(let q=0;q<QSLOTS;q++){
+        const v=d[day*QSLOTS+q], base=day*SLOTS+q*15;
+        for(let m=0;m<15;m++)out[base+m]=v;
+      }
+    }
+    return out;
+  }
+  if(d.length===LEGACY_SLOTS*DAYS){ // ancient format: one entry per 30 minutes
+    const out=new Array(N).fill(null);
+    for(let day=0;day<DAYS;day++){
+      for(let h=0;h<LEGACY_SLOTS;h++){
+        const v=d[day*LEGACY_SLOTS+h], base=day*SLOTS+h*30;
+        for(let m=0;m<30;m++)out[base+m]=v;
       }
     }
     return out;
@@ -804,20 +842,21 @@ setInterval(()=>{
   const el=$("#swTabClock");if(el)el.textContent=fmtElapsed(Date.now()-runningTimer.startTs);
 },1000);
 
+/* startDate/endDate to the minute, catId — overwrites (blocks out) whatever was logged before */
 async function applyRange(startDate,endDate,catId){
-  let t=floor15(startDate).getTime();
-  let end=ceil15(endDate).getTime();
-  if(end<=t)end=t+15*60000;
+  let t=floor1(startDate).getTime();
+  let end=ceil1(endDate).getTime();
+  if(end<=t)end=t+60000;
   const groups={};
-  for(;t<end;t+=15*60000){
+  for(;t<end;t+=60000){
     const d=new Date(t);
     const mon=mondayOf(d);
     const dayIdx=dayIndexInWeek(d);
     if(dayIdx<0||dayIdx>6)continue;
-    const slot=d.getHours()*4+Math.floor(d.getMinutes()/15);
+    const minute=d.getHours()*60+d.getMinutes();
     const wk=keyOf(mon);
     if(!groups[wk])groups[wk]={idx:[]};
-    groups[wk].idx.push(dayIdx*SLOTS+slot);
+    groups[wk].idx.push(dayIdx*SLOTS+minute);
   }
   for(const wk in groups){
     const idx=groups[wk].idx;
@@ -899,8 +938,8 @@ function openAddActivity(){
   let apDay=0;
   for(let d=0;d<DAYS;d++)if(keyOf(shift(cur,d))===today){apDay=d;break}
   let apCat=sel!=="__erase"?sel:cats[0].id;
-  let apStart=defaultStartForDay(apDay);
-  let apEnd=Math.min(SLOTS,apStart+4);
+  let apStart=defaultStartForDay(apDay); // minutes
+  let apEnd=Math.min(SLOTS,apStart+60);
 
   sheet.innerHTML='<h3>Add Activity</h3>';
 
@@ -911,7 +950,7 @@ function openAddActivity(){
     if(d===apDay)b.className="on";
     b.onclick=()=>{
       apDay=d;dayWrap.querySelectorAll("button").forEach(x=>x.className="");b.className="on";
-      apStart=defaultStartForDay(apDay);apEnd=Math.min(SLOTS,apStart+4);
+      apStart=defaultStartForDay(apDay);apEnd=Math.min(SLOTS,apStart+60);
       setPickerTimes(apStart,apEnd);setTypeTimes(apStart,apEnd);
     };
     dayWrap.appendChild(b);
@@ -931,17 +970,17 @@ function openAddActivity(){
 
   const pickWrap=document.createElement("div");pickWrap.className="timerow";
   const selStart=document.createElement("select"), selEnd=document.createElement("select");
-  for(let r=0;r<SLOTS;r++){
-    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
+  for(let q=0;q<QSLOTS;q++){
+    const o=document.createElement("option");o.value=q;o.textContent=qLabel(q);
     selStart.appendChild(o);
   }
-  for(let r=1;r<=SLOTS;r++){
-    const o=document.createElement("option");o.value=r;o.textContent=qLabel(r);
+  for(let q=1;q<=QSLOTS;q++){
+    const o=document.createElement("option");o.value=q;o.textContent=qLabel(q);
     selEnd.appendChild(o);
   }
   selStart.onchange=()=>{
     const v=+selStart.value;
-    if(+selEnd.value<=v){selEnd.value=Math.min(SLOTS,v+4)}
+    if(+selEnd.value<=v){selEnd.value=Math.min(QSLOTS,v+4)}
   };
   pickWrap.appendChild(selStart);
   const to1=document.createElement("span");to1.textContent="to";pickWrap.appendChild(to1);
@@ -952,14 +991,19 @@ function openAddActivity(){
   const typeStart=document.createElement("input"),typeEnd=document.createElement("input");
   typeStart.type=typeEnd.type="text";
   typeStart.autocomplete=typeEnd.autocomplete="off";
-  typeStart.placeholder="9:00a";typeEnd.placeholder="10:00a";
+  typeStart.placeholder="9:07a";typeEnd.placeholder="10:52a";
   typeWrap.appendChild(typeStart);
   const to2=document.createElement("span");to2.textContent="to";typeWrap.appendChild(to2);
   typeWrap.appendChild(typeEnd);
   sheet.appendChild(typeWrap);
 
-  function setPickerTimes(s,e){selStart.value=s;selEnd.value=e}
-  function setTypeTimes(s,e){typeStart.value=qLabel(s);typeEnd.value=qLabel(e)}
+  /* s/e here are exact minutes-of-day; the Pick dropdown only offers quarter-hours,
+     so it's rounded to the nearest one, while Type keeps full minute precision. */
+  function setPickerTimes(s,e){
+    selStart.value=Math.min(QSLOTS,Math.round(s/15));
+    selEnd.value=Math.min(QSLOTS,Math.round(e/15));
+  }
+  function setTypeTimes(s,e){typeStart.value=minuteLabel(s);typeEnd.value=minuteLabel(e)}
   setPickerTimes(apStart,apEnd);setTypeTimes(apStart,apEnd);
 
   function applyMode(){
@@ -969,12 +1013,12 @@ function openAddActivity(){
   }
   modeBtn.onclick=()=>{
     if(timeInputMode==="pick"){
-      setTypeTimes(+selStart.value,+selEnd.value);
+      setTypeTimes((+selStart.value)*15,(+selEnd.value)*15);
       timeInputMode="type";
     }else{
       const s=parseTimeStr(typeStart.value),e=parseTimeStr(typeEnd.value);
-      if(s!=null)selStart.value=s;
-      if(e!=null)selEnd.value=e;
+      if(s!=null)selStart.value=Math.min(QSLOTS,Math.round(s/15));
+      if(e!=null)selEnd.value=Math.min(QSLOTS,Math.round(e/15));
       timeInputMode="pick";
     }
     try{localStorage.setItem("tt:timemode",timeInputMode)}catch(e){}
@@ -986,21 +1030,21 @@ function openAddActivity(){
   addBtn.className="act";addBtn.style.textAlign="center";addBtn.style.fontWeight="600";addBtn.style.marginTop="16px";
   addBtn.textContent="Add";
   addBtn.onclick=()=>{
-    let s,e;
+    let s,e; // minutes-of-day
     if(timeInputMode==="type"){
       s=parseTimeStr(typeStart.value);e=parseTimeStr(typeEnd.value);
-      if(s==null||e==null){alert("Couldn't read one of those times. Try things like 9:00a, 2:30pm, or 14:30.");return}
+      if(s==null||e==null){alert("Couldn't read one of those times. Try things like 9:07a, 2:30pm, or 14:52.");return}
     }else{
-      s=+selStart.value;e=+selEnd.value;
+      s=(+selStart.value)*15;e=(+selEnd.value)*15;
     }
     if(e<=s){alert("End time must be after start time.");return}
     snapshot();
-    for(let r=s;r<e;r++)week[apDay*SLOTS+r]=apCat;
+    for(let m=s;m<e;m++)week[apDay*SLOTS+m]=apCat; // overwrites — blocks out whatever was there
     sel=apCat;renderChips();
     dOff=apDay;
     renderAll();save();closeSheet();
     document.querySelector('.tab[data-v="day"]').click();
-    $("#daywrap").scrollTop=Math.max(0,(Math.floor(s/4)-2)*CELLZ*4);
+    $("#daywrap").scrollTop=Math.max(0,(Math.floor(s/60)-2)*CELLZ*4);
   };
   sheet.appendChild(addBtn);
 
@@ -1035,11 +1079,11 @@ function openCats(){
   for(const c of cats){
     const row=document.createElement("div");row.className="catrow";
     row.innerHTML='<u style="background:'+c.color+'"></u><span>'+esc(c.name)+'</span>'
-      +'<span class="hrs">'+(m[c.id]?fmtH(m[c.id]/4)+" h":"")+'</span>';
+      +'<span class="hrs">'+(m[c.id]?fmtH(m[c.id]/60)+" h":"")+'</span>';
     const x=document.createElement("button");x.textContent="×";
     x.onclick=()=>{
       if(cats.length<2)return;
-      if(m[c.id]&&!confirm("Remove "+c.name+"? Its "+fmtH(m[c.id]/4)+" h this week will be cleared."))return;
+      if(m[c.id]&&!confirm("Remove "+c.name+"? Its "+fmtH(m[c.id]/60)+" h this week will be cleared."))return;
       snapshot();
       cats=cats.filter(z=>z.id!==c.id);
       for(let i=0;i<N;i++)if(week[i]===c.id)week[i]=null;

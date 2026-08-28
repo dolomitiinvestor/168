@@ -1,8 +1,9 @@
 # 168 — week time audit
 
-A single-page web app for logging where all 168 hours of your week go, in 15-minute
-blocks, on your phone. No accounts, no server, no build step. Everything is saved in
-your browser's localStorage on that device.
+A single-page web app for logging where all 168 hours of your week go, on your
+phone. No accounts, no server, no build step. Everything is saved in your
+browser's localStorage on that device. The grid taps and drags in 15-minute
+blocks; typed entries (see below) are exact to the minute.
 
 ![7 x 24 grid](icons/icon-512.png)
 
@@ -15,6 +16,8 @@ Four tabs:
   drag** to paint a longer block. (The hold is what stops the page from scrolling
   while you drag.) Tap a filled cell again to clear it, or pick **Erase** and drag.
   **‹ ›** next to the date move a day at a time; tap the date to jump back to today.
+  For exact-minute entries, use **+ → Type it in** (see below) — any new entry,
+  from the grid or typed, overwrites whatever was logged there before.
 - **Week** — the whole week at a glance, view only. Use **Day** to make changes.
 - **Timer** — a big tile per activity. Tap one to start timing it; tap a different
   tile to switch (the previous activity is logged automatically); use **Stop & Log**
@@ -25,6 +28,12 @@ Four tabs:
 **↺** undoes the last stroke. **‹ ›** in the header move between weeks — each week
 is stored separately. **⋯** has copy-last-week, category editing, backup
 export/import, and clear-week.
+
+The **+ Add Activity** sheet has two ways to set the time: **Pick** (quick
+quarter-hour dropdowns) or **Type it in** (type an exact time like `9:07a`,
+`2:30pm`, or `14:52` — down to the minute). It remembers whichever you used
+last. The start time defaults to the minute the day's last logged activity
+ended, so back-to-back entries continue where you left off.
 
 ## Put it on GitHub Pages
 
