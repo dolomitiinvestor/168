@@ -1,5 +1,5 @@
 // Bump CACHE when you change any file, so phones pick up the new version.
-const CACHE = "168-v5";
+const CACHE = "168-v6";
 const ASSETS = [
   "./",
   "./index.html",
