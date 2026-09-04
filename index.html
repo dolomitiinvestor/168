@@ -1150,7 +1150,22 @@ function importData(){
 
 /* ---------- offline ---------- */
 if("serviceWorker" in navigator){
-  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(reg=>{
+      // iOS home-screen apps resume from a frozen state instead of reloading, so
+      // force a check whenever the app comes back to the foreground.
+      reg.update();
+      document.addEventListener("visibilitychange",()=>{
+        if(document.visibilityState==="visible")reg.update();
+      });
+      let reloaded=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{
+        if(reloaded)return;
+        reloaded=true;
+        window.location.reload();
+      });
+    }).catch(()=>{});
+  });
 }
 
 /* ---------- boot ---------- */
